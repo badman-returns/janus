@@ -110,6 +110,18 @@
   .t-h .hb{margin-left:auto;display:flex;gap:2px}
   .t-h button{border:none;background:none;color:var(--mut2);padding:2px 5px;border-radius:5px;font-size:12px}
   .t-h button:hover{color:var(--ink);background:var(--raise)}
+  .t-h .svcbtn:hover{color:var(--lime)}
+  .t-h .svcbtn.stop:hover{color:var(--bad)}
+  .agent{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+  .agent:first-child{border-top:none}
+  .agent .adot{width:8px;height:8px;border-radius:50%;flex:none}
+  .agent .adot.on{background:var(--lime);box-shadow:0 0 8px var(--lime-glow);animation:br 2.4s ease-in-out infinite}
+  .agent .adot.idle{background:var(--warn)} .agent .adot.off{background:var(--mut2)}
+  .agent .aid{font:600 11px var(--mono);flex:none}
+  .agent .arole{font:10px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mut2);
+                border:1px solid var(--line);border-radius:5px;padding:1px 6px;flex:none}
+  .agent .adetail{color:var(--mut);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
+  .agent .awhen{font:10.5px var(--mono);color:var(--mut2);margin-left:auto;flex:none}
   .t-b{flex:1;overflow:auto;min-height:0;padding:12px 14px;display:flex;flex-direction:column;scrollbar-width:thin}
   .t-b.nopad{padding:0}
   .empty{color:var(--mut);font-size:12.5px;margin:auto;text-align:center;padding:16px}
@@ -305,7 +317,7 @@ const store = { get k(){ return "dm2-" + (project||"x"); },
   load(){ try{ return JSON.parse(localStorage.getItem(this.k))||null }catch{ return null } },
   save(v){ try{ localStorage.setItem(this.k, JSON.stringify(v)) }catch{} } };
 let layout = null; // {open:[], sizes:{}, order:[]}
-const DEFAULT_OPEN = ["gates","proof","runs","git"];
+const DEFAULT_OPEN = ["gates","agents","proof","runs"];
 
 function tileDefs(s){
   const d = {};
@@ -345,6 +357,17 @@ function tileDefs(s){
         <span class="tag ${a.event==="tool"?"done":a.event==="prompt"?"working":""}">${esc(a.event)}</span>
         <span class="what">${esc(a.detail||"")}</span><span class="when">${rel(a.ts)}</span></div>`).join("")
       : `<div class="empty">Lights up once the plugin hooks are installed:<br><span class="cmd">claude plugin install delivery-machine@dm-marketplace</span></div>`; } };
+  d.agents = { name:"Agents & sessions", icon:ICON.runs,
+    count:(s.agents||[]).filter(a=>a.alive).length||null,
+    alert:(s.agents||[]).some(a=>a.alive),
+    body(){ return (s.agents||[]).length ? s.agents.map(a => {
+        const st = a.alive?"on":a.idle?"idle":"off";
+        return `<div class="agent"><span class="adot ${st}"></span>
+          <span class="aid">${esc(a.sid)}</span>
+          <span class="arole">${esc(a.role||"session")}</span>
+          <span class="adetail">${esc(a.detail||a.event||"")}</span>
+          <span class="awhen">${a.alive?"live":rel(a.ts)}</span></div>`; }).join("")
+      : `<div class="empty">No live sessions tracked yet — each Claude session in this project appears here once the plugin hooks fire. Parallel builders show as their own rows.</div>`; } };
   d.board = { name:"Board", icon:ICON.board, count:(s.specs||[]).length+(s.notes||[]).length||null,
     body(){ const rows = [...(s.specs||[]).map(f=>[f.name,f.mtime,""]), ...(s.notes||[]).map(f=>[f.name,f.mtime,"note"])];
       return rows.length ? rows.map(([n,t,k]) => `<div class="rowi"><span>${k?"▫ ":""}${esc(n)}</span><span class="when">${esc(t)}</span></div>`).join("")
@@ -380,6 +403,9 @@ function drawSkeleton(defs){
       <div class="t-h">${t.icon}<span class="name">${esc(t.name)}</span>
         ${t.count!=null?`<span class="cnt">${t.count}</span>`:""}
         <span class="hb">
+          ${k.startsWith("term:")?`
+            <button class="svcbtn" data-svc="restart" data-w="${esc(k.slice(5))}" title="restart service">↻</button>
+            <button class="svcbtn stop" data-svc="stop" data-w="${esc(k.slice(5))}" title="stop service">▮</button>`:""}
           <button data-size="${esc(k)}" title="cycle size">⤢</button>
           <button data-close="${esc(k)}" title="close">✕</button></span></div>
       <div class="t-b ${t.nopad?"nopad":""}" id="b-${cssId(k)}"></div></div>`;
@@ -422,6 +448,11 @@ function wireGrid(defs){
     const k = b.dataset.close;
     layout.open = layout.open.filter(x=>x!==k); layout.order = layout.order.filter(x=>x!==k);
     store.save(layout); rebuild(); });
+  $("grid").querySelectorAll("[data-svc]").forEach(b => b.onclick = async e => { e.stopPropagation();
+    const w = b.dataset.w, act = b.dataset.svc; b.disabled = true;
+    try { await fetch("/api/service", { method:"POST", headers:{"content-type":"application/json"},
+      body: JSON.stringify({ window:w, action:act }) }); } catch {}
+    setTimeout(refreshTerms, 700); setTimeout(()=>{b.disabled=false;}, 900); });
   // drag reorder
   let dragK = null;
   $("grid").querySelectorAll(".tile").forEach(tile => {

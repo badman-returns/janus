@@ -53,6 +53,15 @@ function state() {
   const activity = actRaw.split("\n").filter(Boolean).slice(-20).reverse().map(l => {
     try { return JSON.parse(l); } catch { return { detail: l }; }
   });
+  const agentsDir = path.join(PROJ_DIR, ".delivery", "agents");
+  const now = Date.now();
+  const agents = listDir(agentsDir).filter(f => f.name.endsWith(".json")).map(f => {
+    try {
+      const a = JSON.parse(fs.readFileSync(path.join(agentsDir, f.name), "utf8"));
+      const age = (now - new Date(a.ts).getTime()) / 1000;
+      return { ...a, alive: age < 90, idle: age >= 90 && age < 1800, ageSec: Math.round(age) };
+    } catch { return null; }
+  }).filter(Boolean).filter(a => a.ageSec < 1800).sort((x, y) => x.ageSec - y.ageSec);
   let registry = {};
   try { registry = JSON.parse(fs.readFileSync(REGISTRY, "utf8")); } catch {}
   let projName = path.basename(PROJ_DIR);
@@ -69,7 +78,7 @@ function state() {
       .split("\n").filter(Boolean).map(l => { const [w, c] = l.split("|"); return { window: w, cmd: c }; }),
     specs: listDir(path.join(PROJ_DIR, ".planning", "specs")),
     notes: listDir(path.join(PROJ_DIR, ".planning", "notes")),
-    proof: proofDirs, runs, inbox, replies, activity,
+    proof: proofDirs, runs, inbox, replies, activity, agents,
     decisions: readIf(path.join(PROJ_DIR, ".delivery", "decisions.md"), 4000),
     handoff: readIf(path.join(PROJ_DIR, ".delivery", "HANDOFF.md"), 6000),
     fleet: Object.entries(registry).map(([k, v]) => ({ project: k, ...v })),
@@ -133,6 +142,33 @@ http.createServer((req, res) => {
         fs.unlinkSync(path.join(PROJ_DIR, ".delivery", "replies", name));
         res.writeHead(200, { "content-type": "application/json" }); res.end('{"ok":true}');
       } catch (e) { res.writeHead(400); res.end(String(e.message)); }
+    });
+    return;
+  }
+  if (req.method === "POST" && url === "/api/service") {
+    let body = "";
+    req.on("data", c => { body += c; if (body.length > 2000) req.destroy(); });
+    req.on("end", () => {
+      try {
+        const { window: w, action } = JSON.parse(body);
+        if (!/^[\w-]+$/.test(w)) throw new Error("bad window");
+        let cfg = {}; try { cfg = JSON.parse(fs.readFileSync(path.join(PROJ_DIR, ".delivery", "config.json"), "utf8")); } catch {}
+        const cmd = (cfg.services || {})[w];
+        const has = execSync(`tmux list-windows -t ${SESSION} -F '#W' 2>/dev/null`).toString().split("\n").includes(w);
+        const q = s => s.replace(/'/g, "'\\''");
+        if (action === "stop") {
+          if (has) execSync(`tmux send-keys -t ${SESSION}:${w} C-c`);
+        } else if (action === "restart") {
+          if (has) { execSync(`tmux send-keys -t ${SESSION}:${w} C-c`);
+            if (cmd) execSync(`sleep 0.6; tmux send-keys -t ${SESSION}:${w} '${q(cmd)}' Enter`); }
+        } else if (action === "start") {
+          if (!cmd) throw new Error("no command for " + w + " in config");
+          if (!has) execSync(`tmux new-window -t ${SESSION} -n ${w} -c '${q(PROJ_DIR)}'`);
+          execSync(`tmux send-keys -t ${SESSION}:${w} '${q(cmd)}' Enter`);
+        } else throw new Error("unknown action");
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ ok: true, window: w, action }));
+      } catch (e) { res.writeHead(400, { "content-type": "application/json" }); res.end(JSON.stringify({ ok:false, error:String(e.message) })); }
     });
     return;
   }
