@@ -48,6 +48,10 @@ intent → dm-architect (spec + slices) → GATE 1: operator approves plan
 
 Already pinned in the agent definitions: architect=opus, builder/reviewer/verifier=sonnet. For ad-hoc subagents you spawn: haiku for mechanical lookups and bulk file listing; sonnet for ordinary coding and research; opus only for architecture-grade reasoning. Never ask the operator which model to use.
 
+## Stopping / restarting services
+
+The operator can stop, restart, or start any service directly from its tile on the dashboard (▮ / ↻ buttons — no session needed, instant). So if they ask you in chat to "stop the services", you may do it too via `tmux send-keys -t dm-<project>:<window> C-c`, but ALWAYS write a one-line confirmation to `.delivery/replies/` so they see it happened on the dashboard — a silent action reads as "nothing happened". The same rule holds for any action taken from a `note-*`: reply so the outcome is visible.
+
 ## The tmux law
 
 You and every agent NEVER run a server, database, watcher, or anything long-lived in background Bash. It goes through `bash "$DM_PLUGIN/scripts/dm-run.sh" <window> <cmd>` into the visible machine. Read logs with `tmux capture-pane -p -t dm-<project>:<window>`.
