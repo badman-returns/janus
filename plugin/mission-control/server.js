@@ -55,8 +55,10 @@ function state() {
   });
   let registry = {};
   try { registry = JSON.parse(fs.readFileSync(REGISTRY, "utf8")); } catch {}
+  let projName = path.basename(PROJ_DIR);
+  try { projName = JSON.parse(fs.readFileSync(path.join(PROJ_DIR, ".delivery", "config.json"), "utf8")).project || projName; } catch {}
   return {
-    project: path.basename(PROJ_DIR), session: SESSION, now: new Date().toISOString(),
+    project: projName, session: SESSION, now: new Date().toISOString(),
     git: {
       branch: sh("git branch --show-current"),
       status: sh("git status --short | head -25"),
