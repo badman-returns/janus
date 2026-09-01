@@ -122,6 +122,17 @@
                 border:1px solid var(--line);border-radius:5px;padding:1px 6px;flex:none}
   .agent .adetail{color:var(--mut);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
   .agent .awhen{font:10.5px var(--mono);color:var(--mut2);margin-left:auto;flex:none}
+  .agent[data-agent]{cursor:pointer;margin:0 -6px;padding-left:6px;padding-right:6px;border-radius:8px}
+  .agent[data-agent]:hover{background:var(--lime-dim)}
+  .aevt{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);align-items:baseline;font-size:12.5px}
+  .aevt:first-child{border-top:none}
+  .aevt .ev{font:9.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;border-radius:5px;padding:1px 7px;flex:none;border:1px solid var(--line);color:var(--mut)}
+  .aevt .ev.tool{color:var(--lime);border-color:transparent;background:var(--lime-dim)}
+  .aevt .ev.prompt{color:var(--warn);border-color:transparent;background:var(--warn-dim)}
+  .aevt .dt{min-width:0;flex:1;word-break:break-word;font:12px var(--mono)}
+  .aevt time{font:10px var(--mono);color:var(--mut2);margin-left:auto;flex:none}
+  .backbtn{border:1px solid var(--line);background:var(--card);border-radius:7px;padding:3px 10px;font-size:11.5px;color:var(--mut);display:inline-flex;gap:5px;align-items:center}
+  .backbtn:hover{color:var(--ink);border-color:var(--line2)}
   .t-b{flex:1;overflow:auto;min-height:0;padding:12px 14px;display:flex;flex-direction:column;scrollbar-width:thin}
   .t-b.nopad{padding:0}
   .empty{color:var(--mut);font-size:12.5px;margin:auto;text-align:center;padding:16px}
@@ -282,7 +293,7 @@
 <aside class="drawer" id="drawer" aria-label="Event stream">
   <div class="d-h">
     <svg class="ico" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-    <span class="name">Stream</span><span class="sub">the story, oldest → newest</span>
+    <span id="d-title" style="display:flex;align-items:center;gap:6px"><span class="name">Stream</span><span class="sub">the story, oldest → newest</span></span>
     <button class="x" id="drawerX">✕</button>
   </div>
   <div class="d-scroll" id="dscroll"></div>
@@ -362,7 +373,7 @@ function tileDefs(s){
     alert:(s.agents||[]).some(a=>a.alive),
     body(){ return (s.agents||[]).length ? s.agents.map(a => {
         const st = a.alive?"on":a.idle?"idle":"off";
-        return `<div class="agent"><span class="adot ${st}"></span>
+        return `<div class="agent" data-agent="${esc(a.sid)}" title="click for this agent's full history"><span class="adot ${st}"></span>
           <span class="aid">${esc(a.sid)}</span>
           <span class="arole">${esc(a.role||"session")}</span>
           <span class="adetail">${esc(a.detail||a.event||"")}</span>
@@ -469,6 +480,7 @@ function wireGrid(defs){
   });
 }
 function wireBody(el){
+  el.querySelectorAll("[data-agent]").forEach(r => r.onclick = () => focusAgent(r.dataset.agent));
   el.querySelectorAll("[data-act]").forEach(b => b.onclick = async () => {
     const re = b.dataset.re, note = el.querySelector(`[data-note-for="${CSS.escape(re)}"]`)?.value || "";
     b.disabled = true;
@@ -524,10 +536,32 @@ function drawStream(s){
   if ($("drawer").classList.contains("open")) { try { localStorage.setItem("dm2-seen-"+project, items.length); } catch {} }
   lastStreamCount = items.length;
 }
+let focusedSid = null;
 function toggleDrawer(open){
   const d = $("drawer"), o = open ?? !d.classList.contains("open");
   d.classList.toggle("open", o); $("scrim").classList.toggle("open", o);
-  if (o && S){ try { localStorage.setItem("dm2-seen-"+project, lastStreamCount); } catch {} drawStream(S); $("ta2").focus(); }
+  if (o && S){ if (!focusedSid){ try { localStorage.setItem("dm2-seen-"+project, lastStreamCount); } catch {} drawStream(S); } $("ta2").focus(); }
+  if (!o){ focusedSid = null; }
+}
+async function focusAgent(sid){
+  focusedSid = sid;
+  toggleDrawer(true);
+  $("d-title").innerHTML = `<button class="backbtn" id="backBtn">← stream</button> <span class="name" style="margin-left:8px">agent ${esc(sid)}</span>`;
+  $("backBtn").onclick = () => { focusedSid = null; $("d-title").innerHTML = `<span class="name">Stream</span><span class="sub">the story, oldest → newest</span>`; drawStream(S); };
+  await renderAgentHistory(sid);
+}
+async function renderAgentHistory(sid){
+  const el = $("dscroll");
+  el.innerHTML = `<div class="dayrule">loading agent ${esc(sid)}…</div>`;
+  let rows = [];
+  try { rows = await (await fetch("/api/activity?sid=" + encodeURIComponent(sid))).json(); } catch {}
+  const a = (S.agents||[]).find(x => x.sid === sid);
+  const head = a ? `<div class="dayrule">${a.alive?"● live":a.idle?"○ idle":"○ ended"} · ${esc(a.role||"session")} · ${esc(a.cwd||"")}</div>` : "";
+  el.innerHTML = head + (rows.length ? rows.map(r => `<div class="aevt">
+      <span class="ev ${esc(r.event)}">${esc(r.event)}</span>
+      <span class="dt">${esc(r.detail || "—")}</span>
+      <time>${rel(r.ts)}</time></div>`).join("")
+    : `<div class="empty">No recorded events for this agent yet.</div>`);
 }
 $("streamBtn").onclick = () => toggleDrawer();
 $("drawerX").onclick = () => toggleDrawer(false);
@@ -579,7 +613,9 @@ function render(s){
   $("fleetPop").innerHTML = (s.fleet||[]).map(f =>
     `<a href="http://localhost:${f.port}" class="${f.project===s.project?"me":""}">${esc(f.project)} <span style="float:right;color:var(--mut2)">:${f.port}</span></a>`).join("");
   $("fleetName").textContent = "fleet · " + (s.fleet||[]).length;
-  rebuild(); drawStream(s);
+  rebuild();
+  if (focusedSid && $("drawer").classList.contains("open")) renderAgentHistory(focusedSid);
+  else drawStream(s);
   try { localStorage.setItem("dm2-lastseen", s.now); } catch {}
 }
 function offline(){ document.body.classList.add("offline"); $("pdot").classList.add("down");

@@ -172,6 +172,14 @@ http.createServer((req, res) => {
     });
     return;
   }
+  if (url === "/api/activity") {
+    const sid = new URL(req.url, "http://x").searchParams.get("sid") || "";
+    const raw = readIf(path.join(PROJ_DIR, ".delivery", "activity.jsonl"), 60000) || "";
+    const rows = raw.split("\n").filter(Boolean).map(l => { try { return JSON.parse(l); } catch { return null; } })
+      .filter(Boolean).filter(a => !sid || a.sid === sid).slice(-80).reverse();
+    res.writeHead(200, { "content-type": "application/json" });
+    return res.end(JSON.stringify(rows));
+  }
   if (url === "/api/logs") {
     const w = new URL(req.url, "http://x").searchParams.get("w") || "";
     if (!/^[\w-]+$/.test(w)) { res.writeHead(400); return res.end("bad window"); }
