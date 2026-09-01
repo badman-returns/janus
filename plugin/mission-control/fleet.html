@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fleet · Mission Control</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{--bg:#050505;--card:#101010;--surface:#0D0D0D;--line:hsla(0,0%,100%,.08);--line2:hsla(0,0%,100%,.14);
+    --ink:#FAFAFA;--mut:#888;--mut2:#555;--lime:#CDFF52;--lime-dim:rgba(205,255,82,.08);--lime-glow:rgba(205,255,82,.14);--bad:#FF6B6B;
+    --sans:"Geist",-apple-system,sans-serif;--mono:"Geist Mono",ui-monospace,monospace;}
+  :root[data-theme=light]{--bg:#FAFAFA;--card:#FFF;--surface:#F0F0F0;--line:#E0E0E0;--line2:#CFCFCF;--ink:#0A0A0A;--mut:#666;--mut2:#999;--lime:#84CC16;--lime-dim:rgba(132,204,22,.1);--bad:#DC2626;}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(circle at 50% -10%,var(--lime-dim),transparent 45%),var(--bg);color:var(--ink);
+    font:14px/1.55 var(--sans);min-height:100vh;-webkit-font-smoothing:antialiased;letter-spacing:-.006em}
+  .wrap{max-width:900px;margin:0 auto;padding:48px 22px}
+  .head{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--lime);box-shadow:0 0 10px var(--lime-glow)}
+  h1{font-size:22px;font-weight:600;letter-spacing:-.02em;margin:0}
+  .sub{color:var(--mut);font-size:13px;margin:0 0 28px;font-family:var(--mono)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
+  a.card{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:18px;text-decoration:none;color:inherit;
+    display:block;transition:border-color .12s,transform .12s;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+  a.card:hover{border-color:var(--lime);transform:translateY(-2px)}
+  a.card:focus-visible{outline:1.5px solid var(--lime);outline-offset:2px}
+  .cn{display:flex;align-items:center;gap:9px;margin-bottom:12px}
+  .sd{width:8px;height:8px;border-radius:50%;flex:none}
+  .sd.up{background:var(--lime);box-shadow:0 0 8px var(--lime-glow)} .sd.down{background:var(--mut2)}
+  .cn b{font-size:15px;font-weight:600}
+  .meta{font:11px var(--mono);color:var(--mut2);display:flex;flex-direction:column;gap:4px}
+  .meta .r{display:flex;justify-content:space-between}
+  .badge{background:var(--lime);color:#0A0A0A;border-radius:99px;font:600 10px var(--mono);padding:1px 8px}
+  .empty{color:var(--mut);text-align:center;padding:60px;border:1px dashed var(--line);border-radius:14px}
+  .foot{margin-top:26px;font:11px var(--mono);color:var(--mut2)}
+</style></head><body>
+<div class="wrap">
+  <div class="head"><span class="dot"></span><h1>Fleet</h1></div>
+  <p class="sub">every delivery machine on this host · <span id="ts"></span></p>
+  <div class="grid" id="grid"></div>
+  <p class="foot">Auto-refreshes every 5s. A machine appears here the moment its orchestrator spins up.</p>
+</div>
+<script>
+"use strict";
+const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+try{ if(localStorage.getItem("dm2-theme")==="light") document.documentElement.setAttribute("data-theme","light"); }catch{}
+async function load(){
+  let rows=[];
+  try{ rows=await (await fetch("/api/fleet")).json(); }catch{}
+  document.getElementById("ts").textContent=new Date().toLocaleTimeString();
+  const g=document.getElementById("grid");
+  if(!rows.length){ g.innerHTML=`<div class="empty" style="grid-column:1/-1">No machines registered yet.<br>Run <b>orchestrator.sh</b> in a project to add one.</div>`; return; }
+  g.innerHTML=rows.map(r=>`<a class="card" href="http://localhost:${r.port}">
+    <div class="cn"><span class="sd ${r.alive?"up":"down"}"></span><b>${esc(r.project)}</b>
+      ${r.waiting?`<span class="badge" style="margin-left:auto">${r.waiting} waiting</span>`:""}</div>
+    <div class="meta">
+      <div class="r"><span>port</span><span>:${r.port}</span></div>
+      <div class="r"><span>status</span><span>${r.alive?"running":"stopped"}</span></div>
+      <div class="r"><span>since</span><span>${esc(r.started||"—")}</span></div>
+    </div></a>`).join("");
+}
+load(); setInterval(load,5000);
+</script>
+</body></html>
