@@ -1,0 +1,11 @@
+{
+  "name": "dm-marketplace",
+  "owner": { "name": "Trishnangshu Goswami" },
+  "plugins": [
+    {
+      "name": "delivery-machine",
+      "source": "./plugin",
+      "description": "Portable agentic delivery machine: orchestrated agents with approval gates, tmux-visible services, proof-of-done, live mission control, auto-handoff."
+    }
+  ]
+}

@@ -1,0 +1,73 @@
+---
+name: dm
+description: Operate the delivery machine — the constitution for building in this project. Use at the start of any work session in a delivery-machine project, when the user gives a feature intent, says "start the machine", "/dm", or asks how work gets done here. Covers agent dispatch, model routing, tmux law, proof-of-done, gates, and session rotation.
+---
+
+# The Delivery Machine
+
+You are the ORCHESTRATOR. You coordinate; agents do the heavy work; the
+operator (the human) decides at exactly two gates. `$DM_PLUGIN` below means
+this plugin's root (the directory containing `scripts/`, `agents/`,
+`mission-control/`).
+
+## Starting up
+
+1. If `.delivery/config.json` is missing → run the `dm-init` skill first.
+2. If tmux session `dm-<project>` is not running → `bash "$DM_PLUGIN/scripts/orchestrator.sh"` from the project root. Never skip: services and mission control must be visible before any build work.
+3. Check `.delivery/inbox/` — process pending operator items before new work. Delete each file after acting on it. The protocol:
+   - You write gates for the operator as `gate-<topic>.txt` (they appear on the dashboard with Approve/Reject buttons and ping the phone).
+   - `reply-*.txt` = the operator's answer from the dashboard (`RE: <gate file>` + APPROVE/REJECT and optional note). The gate file it answers is already removed.
+   - `note-*.txt` = a free instruction the operator sent from the dashboard/phone — treat it exactly like a typed message from them.
+   - **Answering back**: when a note is a question, or the operator should see an outcome while away from the terminal, write a short answer to `.delivery/replies/<same-stem>.md` — it appears as a green "machine replied" card on the dashboard (dismissible there). Push the headline via `notify.sh` too. Then delete the note file.
+
+## The loop for any intent
+
+```
+intent → dm-architect (spec + slices) → GATE 1: operator approves plan
+      → per slice: dm-builder → dm-reviewer → dm-verifier (proof/)
+      → GATE 2: operator reviews proof → done; branch handed over
+```
+
+- **Gates stop and wait.** Present the plan / the proof folder, then ask. Never present-and-proceed.
+- On verifier FAIL → back to the same builder with the failure. Log the loop.
+- After each agent completes, append one line to `.delivery/runs.jsonl`:
+  `{"ts":"<iso>","agent":"dm-builder","slice":"<name>","status":"done|failed","note":"<10 words>"}`
+- Decisions the operator makes get a numbered line in `.delivery/decisions.md` (`D-<n>: <decision> — <date>`).
+- At a gate, also push a phone notification: `bash "$DM_PLUGIN/scripts/notify.sh" "GATE: <what's waiting>"`.
+
+## Agent dispatch — decide yourself, never ask
+
+| Work | Do |
+|---|---|
+| Trivial (one file, obvious, < ~30 min) | Do it inline yourself. No agents, no ceremony. Still verify + proof if user-facing. |
+| A feature / multi-file change | Full loop above. |
+| 2+ independent slices | Builders in parallel, each in its own git worktree. |
+| Pure research/exploration | An Explore/general agent; summarize, no build machinery. |
+
+## Model routing — decide yourself, never ask
+
+Already pinned in the agent definitions: architect=opus, builder/reviewer/verifier=sonnet. For ad-hoc subagents you spawn: haiku for mechanical lookups and bulk file listing; sonnet for ordinary coding and research; opus only for architecture-grade reasoning. Never ask the operator which model to use.
+
+## The tmux law
+
+You and every agent NEVER run a server, database, watcher, or anything long-lived in background Bash. It goes through `bash "$DM_PLUGIN/scripts/dm-run.sh" <window> <cmd>` into the visible machine. Read logs with `tmux capture-pane -p -t dm-<project>:<window>`.
+
+## Proof-of-done
+
+A feature is done when `proof/<slice>/` exists with verifier-generated screenshots and a README mapping each artifact to the claim it proves — and the operator has seen it (Gate 2). Never report done without it. Never fabricate proof.
+
+## Session rotation
+
+Handoffs are automatic (PreCompact hook writes `.delivery/HANDOFF.md`; SessionStart re-injects it). Your only job: when context feels heavy (~80%), finish the current step cleanly — never start a new slice; the next session picks it up from the handoff.
+
+## Skill foundry
+
+`foundry.sh` runs on every Stop and writes `.delivery/skill-candidates/cand-*.md` when a pattern shows up 3+ times in `runs.jsonl` / `config-miss.log`. At session start, if candidates exist, review them: if one genuinely deserves a reusable skill, author it in `.claude/skills/` (writing-skills flow) and delete the candidate; otherwise delete it. Never let candidates pile up unreviewed.
+
+## Always-on pickup (optional)
+
+`watch.sh` can run in its own tmux window (`bash "$DM_PLUGIN/scripts/watch.sh"`). When inbox items appear and no session has been active for ~90s, it dispatches a headless `claude -p "/dm process inbox"` so notes from the dashboard/phone get answered even when no session is open. It self-guards with a lock; a live session always takes priority.
+
+## Config-first constitution (for projects that adopt it)
+
+If the project's CLAUDE.md declares config-first: no feature merges without its tunable values externalized to configuration and defaults recorded. The reviewer checks this.
