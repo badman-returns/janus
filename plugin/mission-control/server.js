@@ -156,6 +156,12 @@ http.createServer((req, res) => {
     });
     return;
   }
+  if (req.method === "POST" && url === "/api/session") {
+    // a new Claude inside the machine; same script dm.sh uses
+    const w = sh(`bash '${path.join(__dirname, "..", "scripts", "dm-session.sh")}'`);
+    res.writeHead(w ? 200 : 500, { "content-type": "application/json" });
+    return res.end(JSON.stringify(w ? { ok: true, window: w } : { ok: false, error: "could not start session" }));
+  }
   if (req.method === "POST" && url === "/api/service") {
     let body = "";
     req.on("data", c => { body += c; if (body.length > 2000) req.destroy(); });

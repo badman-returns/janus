@@ -23,11 +23,21 @@ For a second account, run the same two commands from a session on that account
 cd <project>
 claude
 > /dm-init        # one time: detects services, scaffolds .delivery/ .planning/ proof/
-> /dm             # every session: operate the machine
 ```
 
-The orchestrator can also be started straight from a terminal:
-`bash <plugin>/scripts/orchestrator.sh` from the project root.
+Then, every session:
+
+```
+bash <plugin>/scripts/dm.sh [--resume <id>]   # machine up, a Claude INSIDE it, attached
+> /dm                                          # operate the machine
+```
+
+`dm.sh` is what gives the session a terminal tile in mission control. A Claude
+started outside the machine's tmux still works but is invisible to the dashboard
+(the session-start hook says so). More sessions: the "+ session" button on the
+dashboard, or `dm.sh` again — windows `claude`, `claude-2`, `claude-3`…
+
+The orchestrator alone: `bash <plugin>/scripts/orchestrator.sh` from the project root.
 
 - Mission control: `http://localhost:<port>` (auto-assigned per project, auto-opens; every dashboard links to the whole fleet)
 - Attach to the runtime: `tmux attach -t dm-<project>`

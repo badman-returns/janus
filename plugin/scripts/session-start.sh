@@ -10,6 +10,9 @@ if tmux has-session -t "dm-$PROJ" 2>/dev/null; then
 else
   echo "Machine NOT running — start with: bash \"\$(dirname of plugin)/scripts/orchestrator.sh\" or ask /dm to start it."
 fi
+if [ -z "${TMUX:-}" ] || ! tmux display-message -p '#S' 2>/dev/null | grep -q '^dm-'; then
+  echo "NOTE: this session runs OUTSIDE the machine's tmux — mission control cannot show it. Next time start with: bash <plugin>/scripts/dm.sh"
+fi
 if [ -s .delivery/HANDOFF.md ]; then
   echo "--- HANDOFF from previous context ---"
   cat .delivery/HANDOFF.md

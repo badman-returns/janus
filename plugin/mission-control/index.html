@@ -242,6 +242,7 @@
   <span class="offpill">reconnecting</span>
   <span class="spacer"></span>
   <span class="svc" id="svcDots"></span>
+  <button class="pillbtn" id="newSess" title="new Claude session inside the machine">+ session</button>
   <div class="fleetmenu">
     <button class="pillbtn" id="fleetBtn"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span id="fleetName">fleet</span></button>
     <div class="fleetpop" id="fleetPop"></div>
@@ -571,6 +572,10 @@ function wireComposer(ta, btn){
   $(ta).addEventListener("keydown", e => { if (e.key==="Enter" && !e.shiftKey){ e.preventDefault(); send(); } });
 }
 wireComposer("ta","sendBtn"); wireComposer("ta2","sendBtn2");
+$("newSess").onclick = async () => { $("newSess").disabled = true;
+  try { const r = await (await fetch("/api/session", {method:"POST"})).json();
+    if (r.ok){ layout.open.push("term:"+r.window); layout.order.push("term:"+r.window); store.save(layout); }
+  } finally { $("newSess").disabled = false; refresh(); } };
 
 /* ---------------- presence + theme + fleet ---------------- */
 const THEMES = ["auto","light","dark"];
@@ -627,6 +632,7 @@ function cmdActions(){
   acts.push({ label:"Open stream", grp:"action", icon:ICON.reply, run:()=>toggleDrawer(true) });
   acts.push({ label:"Cycle theme (auto / light / dark)", grp:"action", icon:ICON.doc, run:()=>$("themeBtn").click() });
   acts.push({ label:"Open fleet", grp:"action", icon:ICON.board, run:()=>location.href="/fleet" });
+  acts.push({ label:"New Claude session", grp:"action", icon:ICON.term, run:()=>$("newSess").click() });
   asks(S||{inbox:[]}).forEach(i => acts.push({ label:"Approve "+i.name, grp:"gate", icon:ICON.gate, run(){
     post("/api/inbox", { kind:"reply", re:i.name, text:"APPROVE" }); }}));
   return acts;

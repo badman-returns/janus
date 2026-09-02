@@ -24,4 +24,4 @@ description: Initialize the delivery machine in the current project — one-time
 
 5. **Project CLAUDE.md**: if one exists, append a short "Delivery machine" section pointing at the /dm skill and the tmux law; if none, offer to create a minimal one.
 
-6. Finish by starting the machine: `bash "$DM_PLUGIN/scripts/orchestrator.sh"` and report the mission-control URL.
+6. Finish by starting the machine: `bash "$DM_PLUGIN/scripts/orchestrator.sh"` and report the mission-control URL — and that future sessions start with `bash "$DM_PLUGIN/scripts/dm.sh"` so they run inside the machine and get a terminal tile.
