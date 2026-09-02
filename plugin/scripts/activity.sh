@@ -4,9 +4,10 @@
 # outside a dm project. Usage: activity.sh <EventLabel>  (hook JSON on stdin)
 set -uo pipefail
 [ -d .delivery ] || exit 0
-# the heredoc below OWNS stdin, so the hook payload must be read off it first —
+# the heredocs below OWN stdin, so the hook payload must be read off it first —
 # json.load(sys.stdin) inside would parse this script, not the event
-DM_HOOK_JSON=$(cat) DM_EVENT="$1" python3 - <<'EOF' 2>/dev/null
+DM_HOOK_JSON=$(cat); export DM_HOOK_JSON
+DM_EVENT="$1" python3 - <<'EOF' 2>/dev/null
 import json, time, os
 event = os.environ.get("DM_EVENT", "")
 try: h = json.loads(os.environ.get("DM_HOOK_JSON") or "{}")
@@ -56,4 +57,28 @@ for fn in os.listdir(".delivery/agents"):
         if os.path.getmtime(fp) < cutoff: os.remove(fp)
     except Exception: pass
 EOF
+[ "$1" = stop ] || exit 0
+# A session outside the machine has no window for watch.sh to type into, so on
+# Stop it is told itself about waiting inbox items — at most once per 120 s per
+# session, and never while already re-running because of this hook.
+# DM_TMUX_SESSION overrides the tmux lookup (tests).
+SESS=${DM_TMUX_SESSION:-}
+[ -n "$SESS" ] || [ -z "${TMUX:-}" ] || SESS=$(tmux display-message -p '#S' 2>/dev/null)
+case "$SESS" in dm-*) exit 0 ;; esac
+N=$(python3 - <<'EOF' 2>/dev/null
+import glob, json, os, sys, time
+try: h = json.loads(os.environ.get("DM_HOOK_JSON") or "{}")
+except Exception: h = {}
+if h.get("stop_hook_active") is True: sys.exit(0)
+n = len(glob.glob(".delivery/inbox/note-*") + glob.glob(".delivery/inbox/reply-*"))
+if not n: sys.exit(0)
+nudge = ".delivery/.nudge-" + (h.get("session_id") or "main")[:8]
+try:
+    if time.time() - os.path.getmtime(nudge) < 120: sys.exit(0)
+except OSError: pass
+open(nudge, "w").close()
+print(n)
+EOF
+)
+[ -n "$N" ] && printf '{"decision":"block","reason":"%s inbox item(s) waiting — run /dm process the pending items in .delivery/inbox, then continue"}\n' "$N"
 exit 0
