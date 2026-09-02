@@ -12,11 +12,12 @@ echo "$out" | grep -q "no window" || fail "missing window message absent: $out"
 # drive the attach inside a detached tmux client so it does not need a tty here
 tmux new-session -d -s attach-driver -c "$T" "bash '$S' worker; sleep 5"
 sleep 1
-tmux ls | grep -q '^view-' || fail "no view-* grouped session created"
-v=$(tmux ls -F '#S' | grep '^view-' | head -1)
+# other machines' dashboard tiles hold their own view-* sessions; pick ours by group
+v=$(tmux ls -F '#S #{session_group}' | awk '$1 ~ /^view-/ && $2=="dm-attachtest"{print $1}' | head -1)
+[ -n "$v" ] || fail "no view-* grouped session created"
 [ "$(tmux display-message -p -t "$v" '#W')" = "worker" ] || fail "view session not on window worker"
 [ "$(tmux display-message -p -t dm-attachtest '#W')" = "api" ] || fail "source session current window was moved"
 tmux kill-session -t attach-driver
 sleep 1
-tmux ls 2>/dev/null | grep -q '^view-' && fail "view session survived detach"
+tmux ls -F '#S #{session_group}' 2>/dev/null | awk '$1 ~ /^view-/ && $2=="dm-attachtest"' | grep -q . && fail "view session survived detach"
 echo "PASS test_attach"
