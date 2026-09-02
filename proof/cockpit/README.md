@@ -14,3 +14,8 @@ Also verified this session, not pictured: light theme renders from the same toke
 - 05-sidebar-pinned-light.jpg — sidebar replaces the tile tray: Overview / Sessions / Services / Machine / System, counts and live dots, pinned open (light theme).
 - 06-mobile-rail.jpg — under 720px the sidebar is a horizontal icon rail with badges above the main area.
 - (verified live, 12:02) AskUserQuestion → ask card on Waiting on you within 6s → answered "Blue" from the dashboard → Claude continued with "Operator answered from mission control: Blue" and replied Blue. No terminal touched.
+
+## 0.5.5–0.5.6 (not pictured; verified in the browser during the session)
+- Indigo-on-slate visual pass: 4px surfaces, icon controls with CSS tooltips (hover "Session" → "Start a Claude session inside the machine"), sun/moon/auto theme control, flat composer with icon send; checked in both themes.
+- Cockpit split into its own plugin (plugin-mc/); both dashboards restarted from the new path with --scripts and served the new tokens.
+- Ledger: run-log.sh refuses done from a builder and from a verifier without fresh proof (test_run_log); dm-gate.sh writes no Gate 2 file on stale proof.
