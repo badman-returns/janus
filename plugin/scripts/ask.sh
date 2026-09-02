@@ -10,6 +10,13 @@ INBOX=".delivery/inbox"; mkdir -p "$INBOX"
 TIMEOUT=${DM_ASK_TIMEOUT:-580}; POLL=${DM_ASK_POLL:-2}
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# no cockpit listening → nobody can answer a card; fall straight through to the terminal prompt
+if [ -z "${DM_ASK_FORCE:-}" ]; then
+  PROJ=$(python3 -c "import json;print(json.load(open('.delivery/config.json'))['project'])" 2>/dev/null)
+  PORT=$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.delivery-machine/registry.json'))).get('$PROJ',{}).get('port') or '')" 2>/dev/null)
+  [ -n "$PORT" ] && curl -s -m 1 -o /dev/null "http://localhost:$PORT/api/state" || exit 0
+fi
+
 # ---- card
 CARD=$(DM_MODE="$MODE" DM_IN="$IN" python3 - <<'EOF'
 import json, os, re, time

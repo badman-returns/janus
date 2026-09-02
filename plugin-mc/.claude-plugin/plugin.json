@@ -1,0 +1,6 @@
+{
+  "name": "mission-control",
+  "description": "The cockpit for the delivery machine: live terminals, gates and questions as cards, proof gallery, fleet page. Optional — the delivery-machine plugin runs without it.",
+  "version": "0.5.5",
+  "author": { "name": "Trishnangshu Goswami" }
+}

@@ -5,6 +5,10 @@ HERE="$(cd "$(dirname "$0")" && pwd)"; S="$HERE/../scripts/ask.sh"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/.delivery/inbox"; echo '{"project":"asktest","services":{}}' > "$T/.delivery/config.json"
 cd "$T"; fail(){ echo "FAIL test_ask: $1"; exit 1; }
+# no cockpit is listening for this fake project → ask.sh must fall straight through (no card, no wait)
+out=$(echo '{"tool_input":{"questions":[{"question":"q","options":[{"label":"a"}]}]}}' | bash "$S" ask); [ -z "$out" ] || fail "should pass through without a dashboard: $out"
+ls .delivery/inbox | grep -q '^ask-' && fail "card written with no dashboard listening"
+export DM_ASK_FORCE=1   # the rest of the test simulates the dashboard by hand
 IN='{"session_id":"s1","tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"Own slice or fold in?","header":"Scope","options":[{"label":"Own slice","description":""},{"label":"Fold in","description":""}],"multiSelect":false}]}}'
 # answer from "the dashboard" after 1s
 ( sleep 1; f=$(ls .delivery/inbox | grep '^ask-'); printf 'RE: %s\nOwn slice' "$f" > ".delivery/inbox/reply-1-$f"; rm ".delivery/inbox/$f" ) &

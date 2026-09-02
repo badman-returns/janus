@@ -2,7 +2,7 @@
 # server.js renders theme.json into :root blocks; light block guarded by [data-theme=light].
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"
-out=$(node "$HERE/../mission-control/server.js" --render-tokens)
+out=$(node "$HERE/../../plugin-mc/mission-control/server.js" --render-tokens)
 fail(){ echo "FAIL test_theme_inject: $1"; exit 1; }
 echo "$out" | grep -q ':root{' || fail "no :root block"
 echo "$out" | grep -q -- '--bg:#0B0C0B' || fail "dark bg missing"

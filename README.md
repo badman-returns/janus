@@ -11,7 +11,8 @@ Design: `bongbrix/products/unified-platform/design/2026-09-02-delivery-machine-h
 
 ```bash
 claude plugin marketplace add ~/Documents/rootman/delivery-machine
-claude plugin install delivery-machine@dm-marketplace
+claude plugin install delivery-machine@dm-marketplace     # the architecture: agents, gates, ledger, machine
+claude plugin install mission-control@dm-marketplace      # the cockpit (optional) — live terminals, cards, fleet
 ```
 
 For a second account, run the same two commands from a session on that account
