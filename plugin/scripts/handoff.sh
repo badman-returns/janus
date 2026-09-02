@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # PreCompact hook — snapshot hard state into .delivery/HANDOFF.md before the
-# conversation is summarized. Silent no-op outside a delivery-machine project.
+# conversation is summarized. Silent no-op outside a Janus project.
 set -uo pipefail
 [ -d .delivery ] || exit 0
 PROJ=$(python3 -c "import json;print(json.load(open('.delivery/config.json'))['project'])" 2>/dev/null || basename "$PWD")

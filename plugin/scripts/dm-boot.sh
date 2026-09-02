@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bring every registered delivery machine up (idempotent). Run by launchd at login,
+# Bring every registered Janus machine up (idempotent). Run by launchd at login,
 # or by hand. Prints one line per project: started | already up | skipped-missing | failed.
 # Usage: dm-boot.sh
 set -uo pipefail

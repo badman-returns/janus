@@ -1,6 +1,6 @@
 # The file protocol
 
-Everything in the delivery machine talks through files in the project and tmux window names.
+Everything in Janus talks through files in the project and tmux window names.
 The agent layer (skills, agents, hooks), the machine runtime (orchestrator, watcher), and mission
 control (the dashboard) share nothing else. Any of the three can be replaced as long as these
 shapes hold.

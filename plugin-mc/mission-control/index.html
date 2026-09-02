@@ -452,7 +452,7 @@ function tileDefs(s){
     body(){ return (s.activity||[]).length ? s.activity.map(a => `<div class="act">
         <span class="tag ${a.event==="tool"?"done":a.event==="prompt"?"working":""}">${esc(a.event)}</span>
         <span class="what">${esc(a.detail||"")}</span><span class="when">${rel(a.ts)}</span></div>`).join("")
-      : `<div class="empty">Lights up once the plugin hooks are installed:<br><span class="cmd">claude plugin install delivery-machine@dm-marketplace</span></div>`; } };
+      : `<div class="empty">Lights up once the plugin hooks are installed:<br><span class="cmd">claude plugin install janus@janus-marketplace</span></div>`; } };
   d.agents = { name:"Agents & sessions", icon:ICON.runs,
     count:(s.agents||[]).filter(a=>a.alive).length||null,
     alert:(s.agents||[]).some(a=>a.alive),

@@ -1,6 +1,6 @@
 {
-  "name": "delivery-machine",
-  "description": "Agentic delivery machine: architect/builder/reviewer/verifier agents with approval gates, services visible in tmux, proof-of-done harness, live mission control dashboard, automatic session handoffs. Init a project with /dm-init, start with /dm.",
-  "version": "0.5.7",
+  "name": "janus",
+  "description": "Janus: agentic delivery with two human gates — architect/builder/reviewer/verifier agents, one gate on the plan and one on the proof, services visible in tmux, a ledger only the verifier can close, automatic session handoffs. Init a project with /dm-init, start with /dm.",
+  "version": "0.6.0",
   "author": { "name": "Trishnangshu Goswami" }
 }

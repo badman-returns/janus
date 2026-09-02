@@ -15,7 +15,7 @@ const PORT = parseInt(arg("port", "5501"), 10);
 const PROJ_DIR = path.resolve(arg("project", "."));
 const SESSION = arg("session", "dm-" + path.basename(PROJ_DIR));
 const REGISTRY = path.join(process.env.HOME, ".delivery-machine", "registry.json");
-// the machine's scripts live in the delivery-machine plugin, not here — the orchestrator passes the path
+// the machine's scripts live in the janus plugin, not here — the orchestrator passes the path
 const SCRIPTS = path.resolve(arg("scripts", path.join(__dirname, "..", "..", "plugin", "scripts")));
 // proof may live outside the machine's root (config proof_dir, e.g. "../proof" when the machine runs in app/)
 const PROOF = (() => { try { return path.resolve(PROJ_DIR, JSON.parse(fs.readFileSync(path.join(PROJ_DIR, ".delivery", "config.json"), "utf8")).proof_dir || "proof"); }

@@ -1,6 +1,6 @@
 ---
 name: dm-remote
-description: Set up remote access to mission control (phone/anywhere) and push notifications. Use when the user asks for remote access, phone notifications, "see the dashboard from my phone", or ntfy/Tailscale/domain setup for the delivery machine.
+description: Set up remote access to mission control (phone/anywhere) and push notifications. Use when the user asks for remote access, phone notifications, "see the dashboard from my phone", or ntfy/Tailscale/domain setup for Janus.
 ---
 
 # dm-remote — stage 2

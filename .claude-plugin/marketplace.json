@@ -1,16 +1,16 @@
 {
-  "name": "dm-marketplace",
+  "name": "janus-marketplace",
   "owner": { "name": "Trishnangshu Goswami" },
   "plugins": [
     {
-      "name": "delivery-machine",
+      "name": "janus",
       "source": "./plugin",
-      "description": "The agentic delivery workflow: architect/builder/reviewer/verifier with two approval gates, services in tmux, a ledger only the verifier can close, proof-of-done, auto-handoff. Runs alone; gates arrive as terminal prompts."
+      "description": "Two-faced by design: one gate looking forward at the plan, one looking back at the proof. Architect/builder/reviewer/verifier agents, services in tmux, a ledger only the verifier can close, proof-of-done, auto-handoff. Runs alone; gates arrive as terminal prompts."
     },
     {
       "name": "mission-control",
       "source": "./plugin-mc",
-      "description": "The cockpit: every tmux window as a live terminal in the browser, gates and questions as cards, proof gallery, fleet across projects. Install beside delivery-machine."
+      "description": "The cockpit: every tmux window as a live terminal in the browser, gates and questions as cards, proof gallery, fleet across projects. Install beside janus."
     }
   ]
 }

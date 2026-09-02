@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# delivery-machine orchestrator — idempotent. Spins the tmux session, service
+# janus orchestrator — idempotent. Spins the tmux session, service
 # windows, mission control, and registers the machine in the fleet registry.
 # Usage: orchestrator.sh [--no-open]   (run from the project root)
 set -euo pipefail
@@ -31,7 +31,7 @@ EOF
 # ---- tmux session + service windows (window per service; idempotent)
 if ! tmux has-session -t "$SESSION" 2>/dev/null; then
   tmux new-session -d -s "$SESSION" -n control -c "$PROJ_DIR"
-  tmux send-keys -t "$SESSION:control" "echo delivery-machine control pane — $PROJ" Enter
+  tmux send-keys -t "$SESSION:control" "echo janus control pane — $PROJ" Enter
 fi
 PRE=""   # keychain secrets only when config asks; other projects see the command unchanged
 if [ "$(python3 -c "import json;print(bool(json.load(open('$CONF')).get('secrets')))")" = True ]; then
@@ -50,7 +50,7 @@ done
 # ---- the cockpit (mission-control plugin) is optional: beside this repo, or in a plugin cache, or absent
 MC=""
 for c in "${DM_MISSION_CONTROL:-}" "$PLUGIN_ROOT/../plugin-mc/mission-control" \
-         $(ls -d "$HOME"/.claude*/plugins/cache/dm-marketplace/mission-control/*/mission-control 2>/dev/null | sort -V | tail -1); do
+         $(ls -d "$HOME"/.claude*/plugins/cache/*/mission-control/*/mission-control 2>/dev/null | sort -V | tail -1); do
   [ -n "$c" ] && [ -f "$c/server.js" ] && { MC="$(cd "$c" && pwd)"; break; }
 done
 
@@ -60,7 +60,7 @@ if [ -n "$MC" ] && ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "mission
   tmux send-keys -t "$SESSION:mission" \
     "node '$MC/server.js' --port $PORT --project '$PROJ_DIR' --session '$SESSION' --scripts '$PLUGIN_ROOT/scripts'" Enter
 fi
-[ -n "$MC" ] || echo "  cockpit   not installed — files + tmux only.  claude plugin install mission-control@dm-marketplace"
+[ -n "$MC" ] || echo "  cockpit   not installed — files + tmux only.  claude plugin install mission-control@janus-marketplace"
 
 # ---- web terminal (ttyd) — every tile is a real terminal when this runs
 if [ -n "$MC" ] && command -v ttyd >/dev/null 2>&1; then
@@ -93,7 +93,7 @@ reg[proj] = {"dir": pdir, "session": session, "port": int(port), "ttyd_port": in
 json.dump(reg, open(reg_path, "w"), indent=2)
 EOF
 
-echo "── delivery machine up ──────────────────────────"
+echo "── janus up ───────────────────────────────────"
 echo "  project   $PROJ"
 echo "  session   $SESSION   (tmux attach -t $SESSION)"
 [ -n "$MC" ] && echo "  mission   http://localhost:$PORT"
