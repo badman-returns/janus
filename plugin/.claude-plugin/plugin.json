@@ -1,6 +1,6 @@
 {
   "name": "delivery-machine",
   "description": "Agentic delivery machine: architect/builder/reviewer/verifier agents with approval gates, services visible in tmux, proof-of-done harness, live mission control dashboard, automatic session handoffs. Init a project with /dm-init, start with /dm.",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "author": { "name": "Trishnangshu Goswami" }
 }
