@@ -19,3 +19,7 @@ Also verified this session, not pictured: light theme renders from the same toke
 - Indigo-on-slate visual pass: 4px surfaces, icon controls with CSS tooltips (hover "Session" → "Start a Claude session inside the machine"), sun/moon/auto theme control, flat composer with icon send; checked in both themes.
 - Cockpit split into its own plugin (plugin-mc/); both dashboards restarted from the new path with --scripts and served the new tokens.
 - Ledger: run-log.sh refuses done from a builder and from a verifier without fresh proof (test_run_log); dm-gate.sh writes no Gate 2 file on stale proof.
+
+## 0.5.7
+- 07-slice-story.jpg — header usage pill (ctx · 5h · $), sidebar session badge 40%, Agent runs with ledger pills, and the slice story drawer for cr18-checkin-rescheduled: status on branch, spec, ledger timeline, commits (proof and decisions below the fold).
+- (verified, not pictured) gate threads on a throwaway project; dm-prune removed two merged worktrees on iit-roorkee and kept four; dm-proof CI green on DilSayCare/IIT-Roorkee-Wellness main (ca2c994) with both databases migrated.
