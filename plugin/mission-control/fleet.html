@@ -4,38 +4,40 @@
 <title>Fleet · Mission Control</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
 <style>
-  :root{--bg:#050505;--card:#101010;--surface:#0D0D0D;--line:hsla(0,0%,100%,.08);--line2:hsla(0,0%,100%,.14);
-    --ink:#FAFAFA;--mut:#888;--mut2:#555;--lime:#CDFF52;--lime-dim:rgba(205,255,82,.08);--lime-glow:rgba(205,255,82,.14);--bad:#FF6B6B;
-    --sans:"Geist",-apple-system,sans-serif;--mono:"Geist Mono",ui-monospace,monospace;}
-  :root[data-theme=light]{--bg:#FAFAFA;--card:#FFF;--surface:#F0F0F0;--line:#E0E0E0;--line2:#CFCFCF;--ink:#0A0A0A;--mut:#666;--mut2:#999;--lime:#84CC16;--lime-dim:rgba(132,204,22,.1);--bad:#DC2626;}
+  /* tokens come from theme.json — server.js renders them here on every request */
+  /*__TOKENS__*/
   *{box-sizing:border-box}
-  body{margin:0;background:radial-gradient(circle at 50% -10%,var(--lime-dim),transparent 45%),var(--bg);color:var(--ink);
-    font:14px/1.55 var(--sans);min-height:100vh;-webkit-font-smoothing:antialiased;letter-spacing:-.006em}
-  .wrap{max-width:900px;margin:0 auto;padding:48px 22px}
-  .head{display:flex;align-items:center;gap:12px;margin-bottom:6px}
-  .dot{width:9px;height:9px;border-radius:50%;background:var(--lime);box-shadow:0 0 10px var(--lime-glow)}
-  h1{font-size:22px;font-weight:600;letter-spacing:-.02em;margin:0}
-  .sub{color:var(--mut);font-size:13px;margin:0 0 28px;font-family:var(--mono)}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
-  a.card{border:1px solid var(--line);border-radius:14px;background:var(--card);padding:18px;text-decoration:none;color:inherit;
-    display:block;transition:border-color .12s,transform .12s;box-shadow:0 8px 24px rgba(0,0,0,.25)}
-  a.card:hover{border-color:var(--lime);transform:translateY(-2px)}
-  a.card:focus-visible{outline:1.5px solid var(--lime);outline-offset:2px}
+  body{margin:0;background:var(--bg);color:var(--ink);font:var(--fs)/1.55 var(--sans);min-height:100vh;
+       -webkit-font-smoothing:antialiased;font-feature-settings:"tnum"}
+  .wrap{max-width:900px;margin:0 auto;padding:44px 22px}
+  .head{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+  h1{font-size:20px;font-weight:600;letter-spacing:-.01em;margin:0}
+  .sub{color:var(--mut);font:12px var(--mono);margin:0 0 26px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+  a.card{border:1px solid var(--line);border-radius:10px;background:var(--surface);padding:16px 18px;text-decoration:none;color:inherit;
+    display:block;transition:border-color .12s}
+  a.card:hover{border-color:var(--line2)}
+  a.card:focus-visible{outline:1.5px solid var(--acc);outline-offset:2px}
+  a.card.needs{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-dim)}
   .cn{display:flex;align-items:center;gap:9px;margin-bottom:12px}
-  .sd{width:8px;height:8px;border-radius:50%;flex:none}
-  .sd.up{background:var(--lime);box-shadow:0 0 8px var(--lime-glow)} .sd.down{background:var(--mut2)}
-  .cn b{font-size:15px;font-weight:600}
-  .meta{font:11px var(--mono);color:var(--mut2);display:flex;flex-direction:column;gap:4px}
+  .sd{width:7px;height:7px;border-radius:50%;flex:none;background:var(--mut2)}
+  .sd.up{background:var(--ok)}
+  .cn b{font-size:14px;font-weight:500}
+  .pill{margin-left:auto;font:500 11px var(--mono);line-height:1;padding:3px 8px;border-radius:99px;border:1px solid var(--line2);color:var(--mut)}
+  .pill.acc{background:var(--acc);color:var(--acc-ink);border-color:transparent}
+  .meta{font:11.5px var(--mono);color:var(--mut);display:flex;flex-direction:column;gap:4px}
   .meta .r{display:flex;justify-content:space-between}
-  .badge{background:var(--lime);color:#0A0A0A;border-radius:99px;font:600 10px var(--mono);padding:1px 8px}
-  .empty{color:var(--mut);text-align:center;padding:60px;border:1px dashed var(--line);border-radius:14px}
-  .foot{margin-top:26px;font:11px var(--mono);color:var(--mut2)}
+  .meta .r span:last-child{color:var(--ink)}
+  .empty{color:var(--mut);padding:40px 0;font-size:13px}
+  .empty b{font-weight:500;color:var(--ink)}
+  .foot{margin-top:24px;font:11.5px var(--mono);color:var(--mut2)}
 </style></head><body>
 <div class="wrap">
   <div class="head"><span class="dot"></span><h1>Fleet</h1></div>
   <p class="sub">every delivery machine on this host · <span id="ts"></span></p>
   <div class="grid" id="grid"></div>
-  <p class="foot">Auto-refreshes every 5s. A machine appears here the moment its orchestrator spins up.</p>
+  <p class="foot">Refreshes every 5s. A machine appears the moment its orchestrator starts.</p>
 </div>
 <script>
 "use strict";
@@ -46,13 +48,13 @@ async function load(){
   try{ rows=await (await fetch("/api/fleet")).json(); }catch{}
   document.getElementById("ts").textContent=new Date().toLocaleTimeString();
   const g=document.getElementById("grid");
-  if(!rows.length){ g.innerHTML=`<div class="empty" style="grid-column:1/-1">No machines registered yet.<br>Run <b>orchestrator.sh</b> in a project to add one.</div>`; return; }
-  g.innerHTML=rows.map(r=>`<a class="card" href="http://localhost:${r.port}">
-    <div class="cn"><span class="sd ${r.alive?"up":"down"}"></span><b>${esc(r.project)}</b>
-      ${r.waiting?`<span class="badge" style="margin-left:auto">${r.waiting} waiting</span>`:""}</div>
+  if(!rows.length){ g.innerHTML=`<div class="empty" style="grid-column:1/-1">No machines yet. Run <b>orchestrator.sh</b> in a project to add one.</div>`; return; }
+  g.innerHTML=rows.map(r=>`<a class="card ${r.waiting?"needs":""}" href="http://localhost:${r.port}">
+    <div class="cn"><span class="sd ${r.alive?"up":""}"></span><b>${esc(r.project)}</b>
+      ${r.waiting?`<span class="pill acc">${r.waiting} waiting</span>`:`<span class="pill">${r.alive?"running":"stopped"}</span>`}</div>
     <div class="meta">
-      <div class="r"><span>port</span><span>:${r.port}</span></div>
-      <div class="r"><span>status</span><span>${r.alive?"running":"stopped"}</span></div>
+      <div class="r"><span>dashboard</span><span>:${r.port}</span></div>
+      <div class="r"><span>terminal</span><span>${r.ttyd_port?":"+r.ttyd_port:"—"}</span></div>
       <div class="r"><span>since</span><span>${esc(r.started||"—")}</span></div>
     </div></a>`).join("");
 }

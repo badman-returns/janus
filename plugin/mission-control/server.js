@@ -217,14 +217,15 @@ http.createServer((req, res) => {
     res.end(fs.readFileSync(path.join(__dirname, "index.html"), "utf8").replace("/*__TOKENS__*/", renderTokens()));
   } else if (url === "/fleet") {
     res.writeHead(200, { "content-type": "text/html" });
-    res.end(fs.readFileSync(path.join(__dirname, "fleet.html")));
+    res.end(fs.readFileSync(path.join(__dirname, "fleet.html"), "utf8").replace("/*__TOKENS__*/", renderTokens()));
   } else if (url === "/api/fleet") {
     let reg = {};
     try { reg = JSON.parse(fs.readFileSync(REGISTRY, "utf8")); } catch {}
     const rows = Object.entries(reg).map(([k, v]) => {
       let alive = false, waiting = 0;
       try { alive = !!execSync(`tmux has-session -t ${v.session} 2>/dev/null && echo 1`, { timeout: 2000 }).toString().trim(); } catch {}
-      try { waiting = fs.readdirSync(path.join(v.dir, ".delivery", "inbox")).filter(f => !/^(reply|note)-|\.gitkeep/.test(f)).length; } catch {}
+      try { const ib = path.join(v.dir, ".delivery", "inbox");
+        waiting = fs.readdirSync(ib).filter(f => !/^(reply|note)-|\.gitkeep/.test(f) && fs.statSync(path.join(ib, f)).isFile()).length; } catch {}
       return { project: k, ...v, alive, waiting };
     });
     res.writeHead(200, { "content-type": "application/json" });
