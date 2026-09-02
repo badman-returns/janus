@@ -107,6 +107,20 @@ Answer a gate by hand: `printf 'RE: gate-x.txt\nAPPROVE\n' > .delivery/inbox/rep
 - Branches are handed over un-merged. Worktrees per builder.
 - Handoffs are automatic (PreCompact → `HANDOFF.md`, SessionStart injects it). Rotate at seams.
 
+## What the cockpit shows beyond terminals and cards
+
+- **Usage** — the header pill and the session's sidebar badge read Claude Code's own status line
+  (`ctx 11% · 5h 40% · $11.88`); the 5-hour figure turns amber at 80 % and red at 95 %, which is when a
+  run will pause.
+- **Slice story** — click any slice name in *Agent runs*: spec → ledger timeline → review findings →
+  commits → proof thumbnails → decisions, one page. `GET /api/slice?name=<slice>` for the same as JSON.
+- **Gate threads** — a rejection with a note and the revised gate that follows stay together
+  (`.delivery/threads/<gate>.md`); the card shows "round N · previous rounds".
+- **Housekeeping the machine does** — every `orchestrator.sh` run prunes merged, clean worktrees
+  (`dm-prune.sh`, branches kept); services and `dm-run.sh` commands receive keychain secrets declared in
+  `config.json` `secrets` (`secrets-env.sh`); the foundry drafts a skill candidate when the same agent
+  fails the same slice three times or the same note prefix repeats.
+
 ## Where things live
 
 `plugin/` the architecture (agents, skills, hooks, scripts, tests) · `plugin-mc/` the cockpit ·
