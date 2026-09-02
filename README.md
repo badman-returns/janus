@@ -43,6 +43,13 @@ The orchestrator alone: `bash <plugin>/scripts/orchestrator.sh` from the project
 - Attach to the runtime: `tmux attach -t dm-<project>`
 - Phone / remote / push: `/dm-remote`
 
+## Boot at login
+
+`bash <plugin>/scripts/install-login.sh` installs a launchd agent
+(`~/Library/LaunchAgents/com.delivery-machine.boot.plist`) that runs `dm-boot.sh` at login:
+every project in `~/.delivery-machine/registry.json` that still has a `.delivery/` comes up,
+no terminal needed (log: `~/.delivery-machine/boot.log`). `install-login.sh --remove` takes it out.
+
 ## What the operator does
 
 Give intent → approve the architect's plan (gate 1) → review the generated
