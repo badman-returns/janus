@@ -63,6 +63,11 @@ function state() {
   const repliesDir = path.join(PROJ_DIR, ".delivery", "replies");
   const replies = listDir(repliesDir).filter(f => !f.dir)
     .map(f => ({ ...f, body: (readIf(path.join(repliesDir, f.name)) || "").slice(0, 2000) }));
+  const threadsDir = path.join(PROJ_DIR, ".delivery", "threads");
+  const threads = listDir(threadsDir).filter(f => f.name.endsWith(".md")).map(f => {
+    const full = readIf(path.join(threadsDir, f.name)) || "";
+    return { name: f.name, rounds: (full.match(/^## .* · gate$/gm) || []).length, body: full.slice(-6000) };
+  });
   const actRaw = readIf(path.join(PROJ_DIR, ".delivery", "activity.jsonl"), 30000) || "";
   const activity = actRaw.split("\n").filter(Boolean).slice(-20).reverse().map(l => {
     try { return JSON.parse(l); } catch { return { detail: l }; }
@@ -114,7 +119,7 @@ function state() {
     tmux,
     specs: listDir(path.join(PROJ_DIR, ".planning", "specs")),
     notes: listDir(path.join(PROJ_DIR, ".planning", "notes")),
-    proof: proofDirs, runs, inbox, replies, activity, agents,
+    proof: proofDirs, runs, inbox, replies, activity, agents, threads,
     decisions: readIf(path.join(PROJ_DIR, ".delivery", "decisions.md"), 4000),
     handoff: readIf(path.join(PROJ_DIR, ".delivery", "HANDOFF.md"), 6000),
     fleet: Object.entries(registry).map(([k, v]) => ({ project: k, ...v })),
@@ -181,9 +186,17 @@ http.createServer((req, res) => {
           content = text;
         }
         fs.writeFileSync(path.join(dir, name), content);
-        // a reply supersedes the gate item it answers
-        if (kind === "reply" && re && !re.includes("/") && !re.includes(".."))
+        // a reply supersedes the gate item it answers; a gate's exchange is kept in its thread so a
+        // rejection and the revised gate that follows stay together
+        if (kind === "reply" && re && !re.includes("/") && !re.includes("..")) {
+          const gate = re.startsWith("gate-") ? readIf(path.join(dir, re)) : null;
+          if (gate !== null) {
+            const tdir = path.join(PROJ_DIR, ".delivery", "threads"), t = new Date().toISOString();
+            fs.mkdirSync(tdir, { recursive: true });
+            fs.appendFileSync(path.join(tdir, re.replace(/\.txt$/, "") + ".md"), `## ${t} · gate\n\n${gate.trim()}\n\n## ${t} · reply\n\n${text}\n\n`);
+          }
           try { fs.unlinkSync(path.join(dir, re)); } catch {}
+        }
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify({ ok: true, name }));
       } catch (e) {
