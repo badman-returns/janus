@@ -266,6 +266,16 @@
   .cmdrow.sel .ico{opacity:1}
   .cmdrow .grp{font:10.5px var(--mono);color:var(--mut2);margin-left:auto}
   .cmdhint{display:flex;gap:14px;padding:8px 14px;border-top:1px solid var(--line);font:10.5px var(--mono);color:var(--mut2)}
+
+  /* ---------- small screens: sidebar becomes a horizontal rail above the main area (last, so it wins) ---------- */
+  @media (max-width:720px){
+    body{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto}
+    .bar{flex-wrap:wrap;row-gap:6px}
+    .side{grid-row:2;grid-column:1;width:auto!important;height:52px}
+    .gridwrap{grid-row:3;grid-column:1}
+    .dock{grid-row:4;grid-column:1}
+    body.focusmode .tile.focus{max-height:none;height:auto}
+  }
 </style>
 </head>
 <body>
