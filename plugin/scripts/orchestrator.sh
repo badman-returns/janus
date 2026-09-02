@@ -85,6 +85,6 @@ echo "── delivery machine up ───────────────�
 echo "  project   $PROJ"
 echo "  session   $SESSION   (tmux attach -t $SESSION)"
 echo "  mission   http://localhost:$PORT"
-echo "  terminal  ${TTYD_PORT:+http://127.0.0.1:$TTYD_PORT/?arg=control}${TTYD_PORT:-(ttyd missing)}"
+if [ -n "${TTYD_PORT:-}" ]; then echo "  terminal  http://127.0.0.1:$TTYD_PORT/?arg=control"; else echo "  terminal  (ttyd missing)"; fi
 tmux list-windows -t "$SESSION" -F '  window    #W'
 [ "${1:-}" = "--no-open" ] || open "http://localhost:$PORT" 2>/dev/null || true
