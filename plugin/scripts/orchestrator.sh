@@ -14,20 +14,17 @@ SESSION="dm-$PROJ"
 REG_DIR="$HOME/.delivery-machine"; mkdir -p "$REG_DIR"
 REG="$REG_DIR/registry.json"; [ -f "$REG" ] || echo '{}' > "$REG"
 
-# ---- port: reuse registered, else first free in 5500-5599
-PORT=$(python3 - "$REG" "$PROJ" <<'EOF'
-import json, socket, sys
+# ---- ports: reuse registered, else first free. 5501+ dashboard, 5601+ ttyd
+read -r PORT TTYD_PORT < <(python3 - "$REG" "$PROJ" <<'EOF'
+import json, sys
 reg_path, proj = sys.argv[1], sys.argv[2]
 reg = json.load(open(reg_path))
-def free(p):
-    s = socket.socket()
-    try: s.bind(("127.0.0.1", p)); s.close(); return True
-    except OSError: return False
-port = reg.get(proj, {}).get("port")
-if not port:
-    taken = {v.get("port") for v in reg.values()}
-    port = next(p for p in range(5501, 5600) if p not in taken)
-print(port)
+def pick(key, lo, hi):
+    p = reg.get(proj, {}).get(key)
+    if p: return p
+    taken = {v.get(key) for v in reg.values()}
+    return next(p for p in range(lo, hi) if p not in taken)
+print(pick("port", 5501, 5600), pick("ttyd_port", 5601, 5700))
 EOF
 )
 
@@ -53,6 +50,21 @@ if ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "mission"; then
     "node '$PLUGIN_ROOT/mission-control/server.js' --port $PORT --project '$PROJ_DIR' --session '$SESSION'" Enter
 fi
 
+# ---- web terminal (ttyd) — every tile is a real terminal when this runs
+if command -v ttyd >/dev/null 2>&1; then
+  if ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "ttyd"; then
+    XT=$(python3 -c "import json;t=json.load(open('$PLUGIN_ROOT/mission-control/theme.json'));print(json.dumps(t['xterm']),t['font']['size'])")
+    XTHEME=${XT% *}; XSIZE=${XT##* }
+    tmux new-window -t "$SESSION" -n ttyd -c "$PROJ_DIR"
+    # 127.0.0.1 on purpose and not configurable: this is a shell in a browser
+    tmux send-keys -t "$SESSION:ttyd" \
+      "ttyd -i 127.0.0.1 -p $TTYD_PORT -W -a -t 'fontFamily=Geist Mono, Menlo, monospace' -t fontSize=$XSIZE -t 'theme=$XTHEME' -t disableLeaveAlert=true bash '$PLUGIN_ROOT/scripts/dm-attach.sh'" Enter
+  fi
+else
+  TTYD_PORT=""
+  echo "  ttyd not installed — terminal tiles will be read-only snapshots. brew install ttyd, then rerun."
+fi
+
 # ---- pickup watcher window (answers inbox items when no session is live)
 if ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "watch"; then
   tmux new-window -t "$SESSION" -n watch -c "$PROJ_DIR"
@@ -60,11 +72,12 @@ if ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "watch"; then
 fi
 
 # ---- register in the fleet
-python3 - "$REG" "$PROJ" "$PROJ_DIR" "$SESSION" "$PORT" <<'EOF'
+python3 - "$REG" "$PROJ" "$PROJ_DIR" "$SESSION" "$PORT" "${TTYD_PORT:-}" <<'EOF'
 import json, sys, time
-reg_path, proj, pdir, session, port = sys.argv[1:6]
+reg_path, proj, pdir, session, port, tport = sys.argv[1:7]
 reg = json.load(open(reg_path))
-reg[proj] = {"dir": pdir, "session": session, "port": int(port), "started": time.strftime("%Y-%m-%d %H:%M")}
+reg[proj] = {"dir": pdir, "session": session, "port": int(port), "ttyd_port": int(tport) if tport else None,
+             "started": time.strftime("%Y-%m-%d %H:%M")}
 json.dump(reg, open(reg_path, "w"), indent=2)
 EOF
 
@@ -72,5 +85,6 @@ echo "── delivery machine up ───────────────�
 echo "  project   $PROJ"
 echo "  session   $SESSION   (tmux attach -t $SESSION)"
 echo "  mission   http://localhost:$PORT"
+echo "  terminal  ${TTYD_PORT:+http://127.0.0.1:$TTYD_PORT/?arg=control}${TTYD_PORT:-(ttyd missing)}"
 tmux list-windows -t "$SESSION" -F '  window    #W'
 [ "${1:-}" = "--no-open" ] || open "http://localhost:$PORT" 2>/dev/null || true
