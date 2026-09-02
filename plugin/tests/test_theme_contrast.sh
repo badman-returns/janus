@@ -40,6 +40,31 @@ for mode in ("dark", "light"):
         if got < need:
             fails.append(f"{mode}.{tok} {v} is {got:.2f}:1, needs {need}:1")
 
+# the terminal palettes: ttyd bakes the dark one in at launch, the light one is handed to the
+# client as a URL option. Both are read as text on their own background.
+SKIP = {"background", "cursorAccent", "selectionBackground"}
+for key, ground in (("xterm", "dark"), ("xterm_light", "light")):
+    pal = theme.get(key)
+    if not pal:
+        if key == "xterm":
+            fails.append("theme.json has no xterm palette")
+        continue
+    bg = pal.get("background")
+    if not bg or not HEX.match(bg):
+        fails.append(f"{key}.background missing or not a hex: {bg!r}")
+        continue
+    for tok, v in pal.items():
+        if tok in SKIP or not HEX.match(str(v)):
+            continue
+        # ANSI reserves one greyscale slot to match the ground — black on a dark terminal,
+        # white on a light one. It is a fill, never body text, so it is exempt when it is
+        # exactly the background. A chromatic colour that vanishes is still a failure.
+        if tok in ("black", "white", "brightBlack", "brightWhite") and v.upper() == bg.upper():
+            continue
+        got = ratio(v, bg)
+        if got < 4.5:
+            fails.append(f"{key}.{tok} {v} on {bg} is {got:.2f}:1, needs 4.5:1")
+
 if fails:
     print("FAIL test_theme_contrast:")
     for f in fails:
