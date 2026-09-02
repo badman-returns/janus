@@ -22,8 +22,18 @@ while true; do
   # unhandled = note-*/reply-* the orchestrator hasn't consumed
   PENDING=$(ls .delivery/inbox/ 2>/dev/null | grep -E '^(note|reply)-' | wc -l | tr -d ' ')
   if [ "$PENDING" != "0" ] && [ ! -f "$LOCK" ]; then
-    # a live session always takes priority — never dispatch beside one
-    if ! bash "$(dirname "${BASH_SOURCE[0]}")/is-live.sh"; then
+    # a live session inside the machine gets the items typed into it (Claude queues input while busy);
+    # at most once per 2 minutes so a session mid-answer is not spammed
+    LIVEWIN=$(tmux list-windows -t "dm-$PROJ" -F '#W' 2>/dev/null | grep '^claude' | head -1)
+    if [ -n "$LIVEWIN" ]; then
+      NUDGE=".delivery/.nudge"; NOW=$(date +%s); LAST=$(cat "$NUDGE" 2>/dev/null || echo 0)
+      if [ $((NOW - LAST)) -ge 120 ]; then
+        echo "$(date '+%H:%M:%S') — $PENDING inbox item(s); handing them to live session '$LIVEWIN'"
+        tmux send-keys -t "dm-$PROJ:$LIVEWIN" "/dm process the pending items in .delivery/inbox" && sleep 1 && tmux send-keys -t "dm-$PROJ:$LIVEWIN" Enter
+        echo "$NOW" > "$NUDGE"
+      fi
+    # no session anywhere → headless pickup; a session outside the machine (heartbeat) is left alone
+    elif ! bash "$(dirname "${BASH_SOURCE[0]}")/is-live.sh"; then
       echo "$(date '+%H:%M:%S') — $PENDING inbox item(s), no live session; dispatching headless orchestrator"
       touch "$LOCK"
       # snapshot BEFORE dispatch so notes arriving mid-run are not swallowed
