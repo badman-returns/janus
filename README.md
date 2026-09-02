@@ -18,6 +18,15 @@ claude plugin install mission-control@janus-marketplace      # the cockpit (opti
 For a second account, run the same two commands from a session on that account
 (or with its `CLAUDE_CONFIG_DIR` active).
 
+One alias is worth setting — the front door to every machine on the host:
+
+```bash
+alias janus='bash ~/Documents/rootman/delivery-machine/plugin/scripts/janus.sh'
+```
+
+`janus` from any directory lists every registered machine with what it is waiting on and
+where its ledger stopped; pick one and you land in a Claude session inside it.
+
 Day-to-day operation, start/stop, and reading the state without the cockpit: **`GUIDE.md`**.
 The file contract between the agent layer, the machine and the cockpit: **`PROTOCOL.md`**.
 

@@ -25,7 +25,8 @@ claude plugin install janus@janus-marketplace       # architecture
 claude plugin install mission-control@janus-marketplace        # cockpit (skip on an account that only wants the architecture)
 brew install ttyd                                           # cockpit only; without it tiles are read-only snapshots
 bash ~/Documents/rootman/delivery-machine/plugin/scripts/install-login.sh   # optional: machines come up at login
-alias mission='bash ~/Documents/rootman/delivery-machine/plugin/scripts/dm.sh'
+alias janus='bash ~/Documents/rootman/delivery-machine/plugin/scripts/janus.sh'   # the front door, from anywhere
+alias mission='bash ~/Documents/rootman/delivery-machine/plugin/scripts/dm.sh'     # this project's machine
 ```
 Each Claude account is its own install (`CLAUDE_CONFIG_DIR=~/.claude-x claude plugin …`).
 On macOS, launchd cannot read `~/Documents` without Full Disk Access for `/bin/bash` — grant it once.
@@ -44,6 +45,21 @@ not live at the machine root), and the `services` map whenever a new service app
 
 ## Every session — start
 
+Three doors into the same room; pick whichever is nearest.
+
+**From anywhere — you don't remember which project, or don't want to `cd`:**
+
+```bash
+janus                       # every machine on this host, pick one, land in it
+janus iit-roorkee           # skip the picker when you already know
+```
+
+The picker lists each machine with what it is waiting on and the last line of its ledger, so
+you can see where a machine stopped before you enter it. `↑↓` to move, `⏎` or a number to open,
+`d` for that machine's dashboard, `q` to leave. Opening does exactly what `mission` does below.
+
+**From inside a project:**
+
 ```bash
 cd <project>
 mission                     # = dm.sh: machine up, a Claude opened INSIDE it, your terminal attached
@@ -51,7 +67,7 @@ mission --resume <id>       # same, resuming a session
 > /dm                       # the constitution loads; it checks the inbox first
 > <your intent, in plain words>
 ```
-Or, with the cockpit: open `http://localhost:<port>` (fleet page lists every machine), press
+**From the browser:** open `http://localhost:<port>` (the fleet page lists every machine), press
 **+ Session**, click into the tile, type `/dm`. From then on the terminal is optional — the tile *is*
 the session.
 
