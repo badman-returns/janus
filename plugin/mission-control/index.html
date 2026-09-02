@@ -541,7 +541,10 @@ function wireGrid(defs){
     const k = b.dataset.close;
     layout.open = layout.open.filter(x=>x!==k); layout.order = layout.order.filter(x=>x!==k);
     store.save(layout); rebuild(); });
-  $("grid").querySelectorAll("[data-focus]").forEach(b => b.onclick = e => { e.stopPropagation(); toggleFocus(b.dataset.focus, e.shiftKey); });
+  $("grid").querySelectorAll("[data-focus]").forEach(b => b.onclick = e => { e.stopPropagation();
+    const k = b.dataset.focus;
+    if (layout.focus.includes(k)){ layout.focus = layout.focus.filter(x=>x!==k); store.save(layout); rebuild(); }   // ⤡ leaves this pane
+    else toggleFocus(k, e.shiftKey); });
   $("grid").querySelectorAll("[data-svc]").forEach(b => b.onclick = async e => { e.stopPropagation();
     const w = b.dataset.w, act = b.dataset.svc; b.disabled = true;
     try { await fetch("/api/service", { method:"POST", headers:{"content-type":"application/json"},
@@ -661,10 +664,10 @@ addEventListener("keydown", e => { if (e.key!=="Escape") return;
   if ($("drawer").classList.contains("open")) return toggleDrawer(false);
   if (layout && layout.focus.length){ layout.focus = []; store.save(layout); rebuild(); } });
 function toggleFocus(k, add){
+  // nav semantics: show k. shift adds it as the second pane; showing an already-shown pane is a no-op
   const f = layout.focus;
-  if (f.includes(k)) layout.focus = f.filter(x=>x!==k);
-  else if (add && f.length === 1) layout.focus = [f[0], k];
-  else layout.focus = [k];
+  if (add && f.length === 1 && f[0] !== k) layout.focus = [f[0], k];
+  else if (!(f.length === 1 && f[0] === k)) layout.focus = [k];
   if (!layout.open.includes(k)){ layout.open.push(k); layout.order.push(k); }
   store.save(layout); rebuild();
 }
