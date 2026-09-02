@@ -155,6 +155,15 @@
   .aevt .ev.prompt{color:var(--warn);border-color:transparent;background:var(--warn-dim)}
   .aevt .dt{min-width:0;flex:1;word-break:break-word;font:12px var(--mono)}
   .aevt time{font:10px var(--mono);color:var(--mut2);margin-left:auto;flex:none}
+  /* slice story: the drawer at 440px — rows wrap, bodies fold */
+  .what a[data-slice]{color:var(--ink);cursor:pointer;border-bottom:1px solid var(--line2);transition:border-color var(--t)}
+  .what a[data-slice]:hover{border-color:var(--acc)}
+  .story .run{align-items:baseline;flex-wrap:wrap}
+  .story .what{white-space:normal;overflow:visible}
+  .story .fold{margin:6px 0 4px}
+  .story .fold summary{cursor:pointer;font:11.5px var(--mono);color:var(--mut);list-style:none;padding:3px 0}
+  .story .fold summary::before{content:"▸ "} .story .fold[open] summary::before{content:"▾ "}
+  .story .path{font:11.5px var(--mono);color:var(--mut);word-break:break-all}
   .backbtn{border:1px solid var(--line);background:var(--surface);border-radius:var(--r2);padding:4px 10px;font-size:11.5px;color:var(--mut);display:inline-flex;gap:5px;align-items:center}
   .backbtn:hover{color:var(--ink);border-color:var(--line2)}
 
@@ -430,7 +439,7 @@ function tileDefs(s){
     body(){ return (s.runs||[]).length ? s.runs.slice(0,14).map(r => `<div class="run">
         <span class="tag ${esc(r.status)}">${esc(r.status||"·")}</span>
         <span class="who">${esc((r.agent||"").replace("dm-",""))}</span>
-        <span class="what">${esc(r.slice||"")}${r.note?" — "+esc(r.note):""}</span>
+        <span class="what">${r.slice?`<a data-slice="${esc(r.slice)}" title="the whole story of this slice">${esc(r.slice)}</a>`:""}${r.note?" — "+esc(r.note):""}</span>
         <span class="when">${rel(r.ts)}</span></div>`).join("")
       : `<div class="empty">No agent has run yet — give the machine an intent with <span class="cmd">/dm</span></div>`; } };
   d.activity = { name:"Session activity", icon:ICON.activity, count:(s.activity||[]).length||null,
@@ -597,6 +606,7 @@ function wireGrid(defs){
 }
 function wireBody(el){
   el.querySelectorAll("[data-agent]").forEach(r => r.onclick = () => focusAgent(r.dataset.agent));
+  el.querySelectorAll("[data-slice]").forEach(a => a.onclick = () => focusSlice(a.dataset.slice));
   el.querySelectorAll("[data-act]").forEach(b => b.onclick = async () => {
     const re = b.dataset.re, note = el.querySelector(`[data-note-for="${CSS.escape(re)}"]`)?.value || "";
     b.disabled = true;
@@ -660,19 +670,55 @@ function drawStream(s){
   if ($("drawer").classList.contains("open")) { try { localStorage.setItem("dm2-seen-"+project, items.length); } catch {} }
   lastStreamCount = items.length;
 }
-let focusedSid = null;
+let focusedSid = null, focusedSlice = null;
 function toggleDrawer(open){
   const d = $("drawer"), o = open ?? !d.classList.contains("open");
   d.classList.toggle("open", o); $("scrim").classList.toggle("open", o);
-  if (o && S){ if (!focusedSid){ try { localStorage.setItem("dm2-seen-"+project, lastStreamCount); } catch {} drawStream(S); } $("ta2").focus(); }
-  if (!o){ focusedSid = null; }
+  if (o && S){ if (!focusedSid && !focusedSlice){ try { localStorage.setItem("dm2-seen-"+project, lastStreamCount); } catch {} drawStream(S); } $("ta2").focus(); }
+  if (!o){ focusedSid = focusedSlice = null; }
 }
+function backToStream(){ focusedSid = focusedSlice = null; $("d-title").innerHTML = `<span class="name">Stream</span><span class="sub">the story, oldest → newest</span>`; drawStream(S); }
+function drawerHead(title){ $("d-title").innerHTML = `<button class="backbtn" id="backBtn">← stream</button> <span class="name" style="margin-left:8px">${title}</span>`; $("backBtn").onclick = backToStream; }
 async function focusAgent(sid){
-  focusedSid = sid;
+  focusedSid = sid; focusedSlice = null;
   toggleDrawer(true);
-  $("d-title").innerHTML = `<button class="backbtn" id="backBtn">← stream</button> <span class="name" style="margin-left:8px">agent ${esc(sid)}</span>`;
-  $("backBtn").onclick = () => { focusedSid = null; $("d-title").innerHTML = `<span class="name">Stream</span><span class="sub">the story, oldest → newest</span>`; drawStream(S); };
+  drawerHead(`agent ${esc(sid)}`);
   await renderAgentHistory(sid);
+}
+async function focusSlice(name){
+  focusedSlice = name; focusedSid = null; renderSlice.last = null;
+  toggleDrawer(true);
+  drawerHead(`slice ${esc(name)}`);
+  $("dscroll").innerHTML = `<div class="dayrule">loading ${esc(name)}…</div>`;
+  await renderSlice(name);
+}
+async function renderSlice(name){
+  let d; try { d = await (await fetch("/api/slice?name=" + encodeURIComponent(name))).json(); } catch { return; }
+  const j = JSON.stringify(d); if (j === renderSlice.last || focusedSlice !== name) return; renderSlice.last = j;
+  const el = $("dscroll"), wasOpen = new Set([...el.querySelectorAll("details[open]")].map(x => x.dataset.k));
+  const runs = d.runs||[], last = runs[runs.length-1];
+  const verified = runs.some(r => r.agent==="dm-verifier" && r.status==="done");
+  const status = !last ? "no runs" : last.status==="done" && !verified ? (last.agent||"").replace("dm-","")+" done" : last.status;
+  const row = r => `<div class="run"><span class="pill">${esc((r.agent||"").replace("dm-",""))}</span><span class="tag ${esc(r.status)}">${esc(r.status)}</span>
+      <span class="what">${esc(r.note||"")}</span><span class="when">${rel(r.ts)}</span></div>`;
+  const fold = (k, label, body) => `<details class="fold" data-k="${k}" ${wasOpen.has(k)?"open":""}><summary>${label}</summary><pre class="mono">${esc(body)}</pre></details>`;
+  const sec = (label, body) => `<div class="dayrule">${label}</div>` + (body || `<div class="empty">none</div>`);
+  const fixes = runs.filter(r => /^(reviewed|failed|fixed)$/.test(r.status));
+  const p = d.proof||{}, imgs = (p.files||[]).filter(f => /\.(png|jpe?g|gif)$/i.test(f));
+  const href = f => `/proof/${encodeURIComponent(name)}/${encodeURIComponent(f)}`;
+  el.innerHTML = `<div class="story">
+    <div class="run" style="border-top:0"><span class="tag ${verified?"done":esc(last?last.status:"")}">${esc(status)}</span>
+      <span class="what">${d.branch.name ? `on <span class="path">${esc(d.branch.name)}</span>` : "no branch"}</span></div>
+    ${sec("Spec", d.spec ? `<div class="path">${esc(d.spec.path)}</div>` + fold("spec", "read", d.spec.body) : "")}
+    ${sec("Ledger", runs.map(row).join(""))}
+    ${fixes.length ? sec("Review &amp; fixes", fixes.map(row).join("")) : ""}
+    ${sec("Commits", (d.branch.commits||[]).map(c => `<div class="run"><span class="pill">${esc(c.sha)}</span><span class="what">${esc(c.subject)}</span><span class="when">${rel(c.when)}</span></div>`).join(""))}
+    ${sec("Proof", (imgs.length || p.readme) ? `<div class="path">${esc(p.dir||"")}</div>
+      <div class="shots">${imgs.map(f => `<a href="${href(f)}" target="_blank" rel="noopener"><img loading="lazy" src="${href(f)}" alt="${esc(f)}"></a>`).join("")}</div>
+      ${p.readme ? fold("readme", "README.md", p.readme) : ""}` : "")}
+    ${sec("Decisions", (d.decisions||[]).length ? `<pre class="mono">${esc(d.decisions.join("\n"))}</pre>` : "")}
+    ${(d.gates||[]).length ? sec("Gates", d.gates.map(g => fold("g:"+g.name, esc(g.kind+" · "+g.name), g.body)).join("")) : ""}
+  </div>`;
 }
 async function renderAgentHistory(sid){
   const el = $("dscroll");
@@ -761,6 +807,7 @@ function render(s){
   $("fleetName").textContent = "fleet · " + (s.fleet||[]).length;
   rebuild();
   if (focusedSid && $("drawer").classList.contains("open")) renderAgentHistory(focusedSid);
+  else if (focusedSlice && $("drawer").classList.contains("open")) renderSlice(focusedSlice);
   else drawStream(s);
   try { localStorage.setItem("dm2-lastseen", s.now); } catch {}
 }
