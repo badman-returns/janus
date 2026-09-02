@@ -71,7 +71,7 @@ Handoffs are automatic (PreCompact hook writes `.delivery/HANDOFF.md`; SessionSt
 
 ## Always-on pickup
 
-The orchestrator runs `watch.sh` in the `watch` window. When inbox items appear and no session is live (no hook heartbeat under 2 minutes and no `claude*` window), it dispatches a headless `claude -p "/dm process inbox"` on the project's `claude_config_dir`, so notes from the dashboard/phone get answered even when no session is open. It self-guards with a lock; a live session always takes priority.
+The orchestrator runs `watch.sh` in the `watch` window. When inbox items appear: if a `claude*` window exists in the machine, the watcher types `/dm process the pending items in .delivery/inbox` into it (at most once per two minutes — Claude queues the line if it is mid-turn), so a gate answered from the dashboard reaches the session that is waiting at that gate. If no session exists anywhere, it dispatches a headless `claude -p "/dm process inbox"` on the project's `claude_config_dir`. A session running outside the machine (heartbeat only) is left alone — it has no window to type into.
 
 ## Terminals in mission control
 

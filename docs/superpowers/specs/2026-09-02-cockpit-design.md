@@ -1,6 +1,10 @@
 # Mission control v0.5 — the cockpit
 
-**Status:** design, approved in conversation 2026-09-02, awaiting written review.
+**Status:** shipped 0.5.0–0.5.4 on 2026-09-02. Deviations from the text below, all deliberate:
+- §1 no ttyd basic auth (Chrome blocks auth prompts in iframes); localhost bind hard-coded. `ttyd-run.sh` watchdog added: ttyd 1.7.7 on macOS leaks a pty master per closed client.
+- §3 the icon rail became a full **sidebar** (Overview / Sessions / Services / Machine / System; hover-expand, pinnable) and replaced the tile tray entirely — the tray was a list of everything competing with the content.
+- §4 plus: the watcher now types the pickup prompt into a live session inside the machine; the "dropped" Stop-hook drain was not needed.
+- Boot at login (`install-login.sh`) added; needs Full Disk Access for `/bin/bash` when the plugin lives under `~/Documents`.
 **Problem:** the dashboard is a file reader. Claude's real I/O (what it prints, what it asks, what the operator types) never touches a file, so the web shows machine *state* but cannot be used to *work*. The operator built it to stop living in the terminal; today it forces him back there for every interaction.
 **Goal:** web is the one place. Viewing and interacting are the same surface: interactive things (Claude sessions, service shells) are real terminals inside the page; the machine's state (gates, proof, runs, agents) wraps around them.
 
