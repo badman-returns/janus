@@ -5,7 +5,12 @@
     {
       "name": "delivery-machine",
       "source": "./plugin",
-      "description": "Portable agentic delivery machine: orchestrated agents with approval gates, tmux-visible services, proof-of-done, live mission control, auto-handoff."
+      "description": "The agentic delivery workflow: architect/builder/reviewer/verifier with two approval gates, services in tmux, a ledger only the verifier can close, proof-of-done, auto-handoff. Runs alone; gates arrive as terminal prompts."
+    },
+    {
+      "name": "mission-control",
+      "source": "./plugin-mc",
+      "description": "The cockpit: every tmux window as a live terminal in the browser, gates and questions as cards, proof gallery, fleet across projects. Install beside delivery-machine."
     }
   ]
 }

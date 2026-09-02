@@ -11,7 +11,8 @@ Design: `docs/design/2026-09-02-delivery-machine-hld.md`
 
 ```bash
 claude plugin marketplace add ~/code/janus
-claude plugin install delivery-machine@dm-marketplace
+claude plugin install delivery-machine@dm-marketplace     # the architecture: agents, gates, ledger, machine
+claude plugin install mission-control@dm-marketplace      # the cockpit (optional) — live terminals, cards, fleet
 ```
 
 For a second account, run the same two commands from a session on that account

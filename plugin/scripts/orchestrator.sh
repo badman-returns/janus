@@ -43,17 +43,25 @@ for name, cmd in json.load(open('$CONF')).get('services', {}).items():
   fi
 done
 
+# ---- the cockpit (mission-control plugin) is optional: beside this repo, or in a plugin cache, or absent
+MC=""
+for c in "${DM_MISSION_CONTROL:-}" "$PLUGIN_ROOT/../plugin-mc/mission-control" \
+         $(ls -d "$HOME"/.claude*/plugins/cache/dm-marketplace/mission-control/*/mission-control 2>/dev/null | sort -V | tail -1); do
+  [ -n "$c" ] && [ -f "$c/server.js" ] && { MC="$(cd "$c" && pwd)"; break; }
+done
+
 # ---- mission control window
-if ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "mission"; then
+if [ -n "$MC" ] && ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "mission"; then
   tmux new-window -t "$SESSION" -n mission -c "$PROJ_DIR"
   tmux send-keys -t "$SESSION:mission" \
-    "node '$PLUGIN_ROOT/mission-control/server.js' --port $PORT --project '$PROJ_DIR' --session '$SESSION'" Enter
+    "node '$MC/server.js' --port $PORT --project '$PROJ_DIR' --session '$SESSION' --scripts '$PLUGIN_ROOT/scripts'" Enter
 fi
+[ -n "$MC" ] || echo "  cockpit   not installed — files + tmux only.  claude plugin install mission-control@dm-marketplace"
 
 # ---- web terminal (ttyd) — every tile is a real terminal when this runs
-if command -v ttyd >/dev/null 2>&1; then
+if [ -n "$MC" ] && command -v ttyd >/dev/null 2>&1; then
   if ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "ttyd"; then
-    XT=$(python3 -c "import json;t=json.load(open('$PLUGIN_ROOT/mission-control/theme.json'));print(json.dumps(t['xterm']),t['font']['size'])")
+    XT=$(python3 -c "import json;t=json.load(open('$MC/theme.json'));print(json.dumps(t['xterm']),t['font']['size'])")
     XTHEME=${XT% *}; XSIZE=${XT##* }
     tmux new-window -t "$SESSION" -n ttyd -c "$PROJ_DIR"
     # 127.0.0.1 on purpose and not configurable: this is a shell in a browser
@@ -84,7 +92,7 @@ EOF
 echo "── delivery machine up ──────────────────────────"
 echo "  project   $PROJ"
 echo "  session   $SESSION   (tmux attach -t $SESSION)"
-echo "  mission   http://localhost:$PORT"
+[ -n "$MC" ] && echo "  mission   http://localhost:$PORT"
 if [ -n "${TTYD_PORT:-}" ]; then echo "  terminal  http://127.0.0.1:$TTYD_PORT/?arg=control"; else echo "  terminal  (ttyd missing)"; fi
 tmux list-windows -t "$SESSION" -F '  window    #W'
 [ "${1:-}" = "--no-open" ] || open "http://localhost:$PORT" 2>/dev/null || true

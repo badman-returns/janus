@@ -15,6 +15,8 @@ const PORT = parseInt(arg("port", "5501"), 10);
 const PROJ_DIR = path.resolve(arg("project", "."));
 const SESSION = arg("session", "dm-" + path.basename(PROJ_DIR));
 const REGISTRY = path.join(process.env.HOME, ".delivery-machine", "registry.json");
+// the machine's scripts live in the delivery-machine plugin, not here — the orchestrator passes the path
+const SCRIPTS = path.resolve(arg("scripts", path.join(__dirname, "..", "..", "plugin", "scripts")));
 
 const THEME = JSON.parse(fs.readFileSync(path.join(__dirname, "theme.json"), "utf8"));
 // theme.json is the single source: page tokens here, xterm theme via orchestrator → ttyd
@@ -166,7 +168,7 @@ http.createServer((req, res) => {
   }
   if (req.method === "POST" && url === "/api/session") {
     // a new Claude inside the machine; same script dm.sh uses
-    const w = sh(`bash '${path.join(__dirname, "..", "scripts", "dm-session.sh")}'`);
+    const w = sh(`bash '${path.join(SCRIPTS, "dm-session.sh")}'`);
     res.writeHead(w ? 200 : 500, { "content-type": "application/json" });
     return res.end(JSON.stringify(w ? { ok: true, window: w } : { ok: false, error: "could not start session" }));
   }
