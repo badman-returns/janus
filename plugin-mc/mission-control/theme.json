@@ -1,31 +1,31 @@
 {
   "font": {
-    "sans": "\"Geist\",system-ui,-apple-system,\"Segoe UI\",sans-serif",
-    "mono": "\"Geist Mono\",ui-monospace,SFMono-Regular,Menlo,monospace",
-    "size": 13
+    "sans": "\"IBM Plex Sans\",system-ui,-apple-system,\"Segoe UI\",sans-serif",
+    "mono": "\"IBM Plex Mono\",ui-monospace,SFMono-Regular,Menlo,monospace",
+    "size": 14
   },
   "dark": {
-    "bg": "#0E1013", "surface": "#14171B", "raise": "#1B1F25", "line": "#232830", "line2": "#303743",
-    "ink": "#E8ECF1", "mut": "#8B94A3", "mut2": "#5B6472",
-    "acc": "#7C8CFF", "acc-ink": "#0B0D14", "acc-dim": "rgba(124,140,255,.14)",
-    "warn": "#FBBF24", "warn-dim": "rgba(251,191,36,.14)", "ok": "#34D399", "ok-dim": "rgba(52,211,153,.14)",
-    "bad": "#F87171", "bad-dim": "rgba(248,113,113,.14)",
-    "term": "#0B0D10", "term-ink": "#D9DEE5"
+    "bg": "#0D1014", "surface": "#171B21", "raise": "#212832", "line": "#606770", "line2": "#7A838F",
+    "ink": "#F4F7FA", "mut": "#B2BCC9", "mut2": "#8792A1",
+    "acc": "#93A3FF", "acc-ink": "#0B0D14", "acc-dim": "rgba(147,163,255,.16)",
+    "warn": "#FFCA45", "warn-dim": "rgba(255,202,69,.15)", "ok": "#45E0AB", "ok-dim": "rgba(69,224,171,.15)",
+    "bad": "#FF8C8C", "bad-dim": "rgba(255,140,140,.15)",
+    "term": "#0B0D10", "term-ink": "#DDE3EA"
   },
   "light": {
-    "bg": "#F5F6F8", "surface": "#FFFFFF", "raise": "#EEF0F3", "line": "#E2E5EA", "line2": "#CBD1DA",
-    "ink": "#14181E", "mut": "#626B78", "mut2": "#98A1AE",
-    "acc": "#4F5BD5", "acc-ink": "#FFFFFF", "acc-dim": "rgba(79,91,213,.12)",
-    "warn": "#B45309", "warn-dim": "rgba(180,83,9,.12)", "ok": "#059669", "ok-dim": "rgba(5,150,105,.12)",
-    "bad": "#DC2626", "bad-dim": "rgba(220,38,38,.12)",
-    "term": "#0B0D10", "term-ink": "#D9DEE5"
+    "bg": "#F2F4F6", "surface": "#FFFFFF", "raise": "#E9ECF0", "line": "#878E97", "line2": "#6B7078",
+    "ink": "#11151A", "mut": "#4E555E", "mut2": "#646C76",
+    "acc": "#3B49C4", "acc-ink": "#FFFFFF", "acc-dim": "rgba(59,73,196,.12)",
+    "warn": "#8A5300", "warn-dim": "rgba(138,83,0,.13)", "ok": "#0B6B49", "ok-dim": "rgba(11,107,73,.13)",
+    "bad": "#B3261E", "bad-dim": "rgba(179,38,30,.13)",
+    "term": "#0B0D10", "term-ink": "#DDE3EA"
   },
   "xterm": {
-    "background": "#0B0D10", "foreground": "#D9DEE5", "cursor": "#7C8CFF", "cursorAccent": "#0B0D10",
-    "selectionBackground": "rgba(124,140,255,.28)",
-    "black": "#0B0D10", "red": "#F87171", "green": "#34D399", "yellow": "#FBBF24", "blue": "#7C8CFF",
-    "magenta": "#C084FC", "cyan": "#5EEAD4", "white": "#D9DEE5",
-    "brightBlack": "#5B6472", "brightRed": "#FCA5A5", "brightGreen": "#6EE7B7", "brightYellow": "#FDE68A",
-    "brightBlue": "#A5B4FC", "brightMagenta": "#D8B4FE", "brightCyan": "#99F6E4", "brightWhite": "#F3F5F8"
+    "background": "#0B0D10", "foreground": "#DDE3EA", "cursor": "#93A3FF", "cursorAccent": "#0B0D10",
+    "selectionBackground": "rgba(147,163,255,.3)",
+    "black": "#0B0D10", "red": "#FF8C8C", "green": "#45E0AB", "yellow": "#FFCA45", "blue": "#93A3FF",
+    "magenta": "#CB9BFF", "cyan": "#6FF0DC", "white": "#DDE3EA",
+    "brightBlack": "#8792A1", "brightRed": "#FFB3B3", "brightGreen": "#7FEFC6", "brightYellow": "#FFDE8A",
+    "brightBlue": "#B4C0FF", "brightMagenta": "#DEBEFF", "brightCyan": "#A5F7EC", "brightWhite": "#F4F7FA"
   }
 }
