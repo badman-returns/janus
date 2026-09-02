@@ -284,7 +284,9 @@ http.createServer((req, res) => {
   }
   if (url === "/") {
     res.writeHead(200, { "content-type": "text/html" });
-    res.end(fs.readFileSync(path.join(__dirname, "index.html"), "utf8").replace("/*__TOKENS__*/", renderTokens()));
+    res.end(fs.readFileSync(path.join(__dirname, "index.html"), "utf8")
+      .replace("/*__TOKENS__*/", renderTokens())
+      .replace("/*__XTERM_LIGHT__*/null", JSON.stringify(THEME.xterm_light || THEME.xterm)));
   } else if (url === "/fleet") {
     res.writeHead(200, { "content-type": "text/html" });
     res.end(fs.readFileSync(path.join(__dirname, "fleet.html"), "utf8").replace("/*__TOKENS__*/", renderTokens()));
