@@ -15,6 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        # monorepo in a subdir? add:  with: { package_json_file: <dir>/package.json }  and a defaults.run.working-directory
       - uses: actions/setup-node@v4
         with:
           node-version: 22
