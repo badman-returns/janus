@@ -63,7 +63,12 @@ EOF
 # session, and never while already re-running because of this hook.
 # DM_TMUX_SESSION overrides the tmux lookup (tests).
 SESS=${DM_TMUX_SESSION:-}
-[ -n "$SESS" ] || [ -z "${TMUX:-}" ] || SESS=$(tmux display-message -p '#S' 2>/dev/null)
+# ask about OUR pane: a bare display-message answers for the newest client, which is usually a ttyd view-* session.
+# A pane inside the machine reports the group name (dm-<project>) whether it is viewed through a grouped session or not.
+if [ -z "$SESS" ] && [ -n "${TMUX:-}" ]; then
+  SESS=$(tmux display-message -p -t "${TMUX_PANE:-}" '#{session_group}' 2>/dev/null)
+  [ -n "$SESS" ] || SESS=$(tmux display-message -p -t "${TMUX_PANE:-}" '#S' 2>/dev/null)
+fi
 case "$SESS" in dm-*) exit 0 ;; esac
 N=$(python3 - <<'EOF' 2>/dev/null
 import glob, json, os, sys, time
