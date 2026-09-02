@@ -68,6 +68,35 @@
   .chip.on::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--lime);box-shadow:0 0 6px var(--lime-glow);margin-right:-1px}
   .chip.on:hover{background:var(--bad-dim);color:var(--bad);border-color:transparent}
   .chip.on:hover .ico{stroke:var(--bad)}
+  .chip i{font:600 10px var(--mono);font-style:normal;color:var(--mut);background:var(--raise);border-radius:99px;padding:0 6px;line-height:15px}
+  .chip.alert i{background:var(--acc);color:var(--acc-ink)}
+  /* focus mode: one (or two) tiles fill the page; the tray becomes an icon rail */
+  body.focusmode{display:grid;grid-template-columns:56px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
+  body.focusmode .bar{grid-column:1/-1}
+  body.focusmode .tray{grid-row:2;grid-column:1}
+  body.focusmode .gridwrap{grid-row:2;grid-column:2;display:flex;min-height:0}
+  body.focusmode .dock{grid-column:1/-1}
+  body.focusmode .tray{flex-direction:column;flex-wrap:nowrap;width:56px;border-right:1px solid var(--line);border-bottom:0;padding:10px 8px;gap:6px;overflow-y:auto;overflow-x:hidden;align-items:center;scrollbar-width:none}
+  body.focusmode .tray .lbl{display:none}
+  body.focusmode .chip{width:40px;height:40px;padding:0;justify-content:center;position:relative;border-radius:9px}
+  body.focusmode .chip .cl{display:none}
+  body.focusmode .chip .ico{width:16px;height:16px}
+  body.focusmode .chip.on::before{display:none}
+  body.focusmode .chip.foc{color:var(--ink);background:var(--raise);border-color:var(--line2)}
+  body.focusmode .chip.on:hover{background:var(--raise);color:var(--ink);border-color:var(--line2)}
+  body.focusmode .chip.on:hover .ico{stroke:var(--ink)}
+  body.focusmode .chip i{position:absolute;top:-5px;right:-5px}
+  body.focusmode .grid{flex:1;grid-template-columns:1fr;grid-auto-rows:minmax(0,1fr);padding:0;gap:0;height:100%;min-width:0;align-content:stretch}
+  body.focusmode.split .grid{grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+  body.focusmode .tile.focus{grid-column:auto;height:auto;min-height:0;border:0;border-radius:0;box-shadow:none}
+  @media (max-width:720px){
+    body.focusmode{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto}
+    body.focusmode .tray{grid-row:2;grid-column:1;flex-direction:row;width:auto;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden;padding:8px 10px;scrollbar-width:none}
+    body.focusmode .gridwrap{grid-row:3;grid-column:1}
+    body.focusmode .dock{grid-row:4}
+    body.focusmode.split .grid{grid-template-columns:1fr}
+    body.focusmode.split .tile.focus:nth-child(2){display:none}
+  }
   .chip.on:hover::before{background:var(--bad);box-shadow:none}
 
   /* ---------- grid ---------- */
@@ -401,6 +430,7 @@ function ensureLayout(defs){
   const order = layout.order.filter(k => layout.open.includes(k));
   layout.open.forEach(k => { if(!order.includes(k)) order.push(k); });
   layout.order = order;
+  layout.focus = (layout.focus||[]).filter(k => defs[k]);   // 0–2 keys: focus / split
 }
 function drawSkeleton(defs){
   // rebuilding the grid destroys every iframe (ttyd reconnects, xterm flashes its size) —
@@ -408,16 +438,20 @@ function drawSkeleton(defs){
   const sig = JSON.stringify([layout.order, layout.sizes, layout.focus||[]]);
   if (sig === drawSkeleton.sig && $("grid").children.length) return;
   drawSkeleton.sig = sig;
-  $("grid").innerHTML = layout.order.map(k => {
+  const keys = layout.focus.length ? layout.focus : layout.order;
+  document.body.classList.toggle("focusmode", layout.focus.length > 0);
+  document.body.classList.toggle("split", layout.focus.length === 2);
+  $("grid").innerHTML = keys.map(k => {
     const t = defs[k]; const size = layout.sizes[k] || (k.startsWith("term:")?"xl":"m");
-    return `<div class="tile ${size} ${t.alert?"alert":""}" data-k="${esc(k)}" draggable="true">
+    return `<div class="tile ${size} ${t.alert?"alert":""} ${layout.focus.includes(k)?"focus":""}" data-k="${esc(k)}" draggable="true">
       <div class="t-h">${t.icon}<span class="name">${esc(t.name)}</span>
         ${t.count!=null?`<span class="cnt">${t.count}</span>`:""}
         <span class="hb">
-          ${k.startsWith("term:")?`
+          ${k.startsWith("term:") && !/^term:claude/.test(k)?`
             <button class="svcbtn" data-svc="restart" data-w="${esc(k.slice(5))}" title="restart service">↻</button>
             <button class="svcbtn stop" data-svc="stop" data-w="${esc(k.slice(5))}" title="stop service">▮</button>`:""}
-          <button data-size="${esc(k)}" title="cycle size">⤢</button>
+          <button data-focus="${esc(k)}" title="${layout.focus.includes(k)?"leave focus (esc)":"focus — shift-click for split"}">${layout.focus.includes(k)?"⤡":"◻"}</button>
+          ${layout.focus.length?"":`<button data-size="${esc(k)}" title="cycle size">⤢</button>`}
           <button data-close="${esc(k)}" title="close">✕</button></span></div>
       <div class="t-b ${t.nopad?"nopad":""}" id="b-${cssId(k)}"></div></div>`;
   }).join("");
@@ -441,9 +475,11 @@ function drawTray(defs){
   const tray = $("tray");
   tray.querySelectorAll(".chip").forEach(c=>c.remove());
   Object.entries(defs).forEach(([k,t]) => tray.insertAdjacentHTML("beforeend",
-    `<button class="chip ${layout.open.includes(k)?"on":""}" data-chip="${esc(k)}">${t.icon}${esc(t.name)}</button>`));
-  tray.querySelectorAll("[data-chip]").forEach(b => b.onclick = () => {
+    `<button class="chip ${layout.open.includes(k)?"on":""} ${layout.focus.includes(k)?"foc":""} ${t.alert?"alert":""}" data-chip="${esc(k)}" title="${esc(t.name)}${layout.focus.length?" — click to focus, shift-click to split":""}">
+       ${t.icon}<span class="cl">${esc(t.name)}</span>${t.count!=null?`<i>${t.count}</i>`:""}</button>`));
+  tray.querySelectorAll("[data-chip]").forEach(b => b.onclick = e => {
     const k = b.dataset.chip;
+    if (layout.focus.length) return toggleFocus(k, e.shiftKey);   // rail mode: chips switch the focused tile
     layout.open.includes(k) ? (layout.open = layout.open.filter(x=>x!==k), layout.order = layout.order.filter(x=>x!==k))
                             : (layout.open.push(k), layout.order.push(k));
     store.save(layout); rebuild();
@@ -459,6 +495,7 @@ function wireGrid(defs){
     const k = b.dataset.close;
     layout.open = layout.open.filter(x=>x!==k); layout.order = layout.order.filter(x=>x!==k);
     store.save(layout); rebuild(); });
+  $("grid").querySelectorAll("[data-focus]").forEach(b => b.onclick = e => { e.stopPropagation(); toggleFocus(b.dataset.focus, e.shiftKey); });
   $("grid").querySelectorAll("[data-svc]").forEach(b => b.onclick = async e => { e.stopPropagation();
     const w = b.dataset.w, act = b.dataset.svc; b.disabled = true;
     try { await fetch("/api/service", { method:"POST", headers:{"content-type":"application/json"},
@@ -566,7 +603,17 @@ async function renderAgentHistory(sid){
 $("streamBtn").onclick = () => toggleDrawer();
 $("drawerX").onclick = () => toggleDrawer(false);
 $("scrim").onclick = () => toggleDrawer(false);
-addEventListener("keydown", e => { if (e.key==="Escape") toggleDrawer(false); });
+addEventListener("keydown", e => { if (e.key!=="Escape") return;
+  if ($("drawer").classList.contains("open")) return toggleDrawer(false);
+  if (layout && layout.focus.length){ layout.focus = []; store.save(layout); rebuild(); } });
+function toggleFocus(k, add){
+  const f = layout.focus;
+  if (f.includes(k)) layout.focus = f.filter(x=>x!==k);
+  else if (add && f.length === 1) layout.focus = [f[0], k];
+  else layout.focus = [k];
+  if (!layout.open.includes(k)){ layout.open.push(k); layout.order.push(k); }
+  store.save(layout); rebuild();
+}
 
 /* ---------------- composer ---------------- */
 async function post(url, payload){
@@ -634,11 +681,13 @@ function cmdActions(){
   const acts = [];
   Object.entries(defs).forEach(([k,t]) => {
     const open = layout && layout.open.includes(k);
-    acts.push({ label:(open?"Focus":"Open")+" "+t.name, grp:"tile", icon:t.icon, run(){
+    acts.push({ label:(open?"Show":"Open")+" "+t.name, grp:"tile", icon:t.icon, run(){
       if (!open){ layout.open.push(k); layout.order.push(k); store.save(layout); rebuild(); }
       const el = $("b-"+cssId(k)); if (el) el.closest(".tile").scrollIntoView({behavior:"smooth",block:"center"});
     }});
+    acts.push({ label:"Focus "+t.name, grp:"focus", icon:t.icon, run(){ toggleFocus(k); } });
   });
+  if (layout && layout.focus.length) acts.push({ label:"Exit focus", grp:"focus", icon:ICON.board, run(){ layout.focus=[]; store.save(layout); rebuild(); } });
   acts.push({ label:"Open stream", grp:"action", icon:ICON.reply, run:()=>toggleDrawer(true) });
   acts.push({ label:"Cycle theme (auto / light / dark)", grp:"action", icon:ICON.doc, run:()=>$("themeBtn").click() });
   acts.push({ label:"Open fleet", grp:"action", icon:ICON.board, run:()=>location.href="/fleet" });
