@@ -53,6 +53,12 @@ if ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "mission"; then
     "node '$PLUGIN_ROOT/mission-control/server.js' --port $PORT --project '$PROJ_DIR' --session '$SESSION'" Enter
 fi
 
+# ---- pickup watcher window (answers inbox items when no session is live)
+if ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "watch"; then
+  tmux new-window -t "$SESSION" -n watch -c "$PROJ_DIR"
+  tmux send-keys -t "$SESSION:watch" "bash '$PLUGIN_ROOT/scripts/watch.sh'" Enter
+fi
+
 # ---- register in the fleet
 python3 - "$REG" "$PROJ" "$PROJ_DIR" "$SESSION" "$PORT" <<'EOF'
 import json, sys, time
