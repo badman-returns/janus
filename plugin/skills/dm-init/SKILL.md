@@ -1,6 +1,6 @@
 ---
 name: dm-init
-description: Initialize the delivery machine in the current project — one-time scaffold. Use when the user says "set up the delivery machine here", "/dm-init", or /dm finds no .delivery/config.json.
+description: Initialize Janus in the current project — one-time scaffold. Use when the user says "set up Janus here", "/dm-init", or /dm finds no .delivery/config.json.
 ---
 
 # dm-init — one-time project scaffold
@@ -22,7 +22,7 @@ description: Initialize the delivery machine in the current project — one-time
 
 4. **Gitignore**: append `.delivery/HANDOFF.md` and `.delivery/inbox/` to `.gitignore` (session-local state); `decisions.md`, `runs.jsonl`, `.planning/`, `proof/` are committed — they are the track record.
 
-5. **Project CLAUDE.md**: if one exists, append a short "Delivery machine" section pointing at the /dm skill and the tmux law; if none, offer to create a minimal one.
+5. **Project CLAUDE.md**: if one exists, append a short "Janus" section pointing at the /dm skill and the tmux law; if none, offer to create a minimal one.
 
 6. **CI proof**: if `git remote -v` shows a GitHub remote and `.github/workflows/dm-proof.yml` does not exist, copy `$DM_PLUGIN/templates/dm-proof.yml` there and tell the operator it runs `pnpm -r test` on `fix/**`, `feat/**` and PRs — edit the test step if the project's command differs. No GitHub remote → say it can be added later with the same file.
 

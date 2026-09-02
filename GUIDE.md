@@ -1,6 +1,6 @@
 # Operator's guide
 
-How to run the delivery machine day to day. Two ways to use it: **architecture only** (agents, gates,
+How to run Janus day to day. Two ways to use it: **architecture only** (agents, gates,
 ledger, tmux — gates arrive as terminal prompts) or **with the cockpit** (the same, plus every terminal,
 gate and question in a browser tab and on your phone). The file contract between the two is
 `PROTOCOL.md`; nothing else couples them.
@@ -21,8 +21,8 @@ services, the Claude session(s), and — with the cockpit — `mission` (dashboa
 
 ```bash
 claude plugin marketplace add ~/Documents/rootman/delivery-machine
-claude plugin install delivery-machine@dm-marketplace       # architecture
-claude plugin install mission-control@dm-marketplace        # cockpit (skip on an account that only wants the architecture)
+claude plugin install janus@janus-marketplace       # architecture
+claude plugin install mission-control@janus-marketplace        # cockpit (skip on an account that only wants the architecture)
 brew install ttyd                                           # cockpit only; without it tiles are read-only snapshots
 bash ~/Documents/rootman/delivery-machine/plugin/scripts/install-login.sh   # optional: machines come up at login
 alias mission='bash ~/Documents/rootman/delivery-machine/plugin/scripts/dm.sh'
@@ -37,7 +37,7 @@ cd <project> && claude      # on the account this project uses
 > /dm-init
 ```
 Detects services, writes `.delivery/config.json`, scaffolds `.delivery/ .planning/ proof/`, appends a
-"Delivery machine" section to `CLAUDE.md`, drops a `dm-proof` GitHub Actions workflow if there is a
+"Janus" section to `CLAUDE.md`, drops a `dm-proof` GitHub Actions workflow if there is a
 remote, starts the machine. Then edit `config.json` by hand for: `claude_config_dir` (the account),
 `ntfy_topic` (phone pushes — subscribe to the same topic in the ntfy app), `proof_dir` (if proof does
 not live at the machine root), and the `services` map whenever a new service appears.

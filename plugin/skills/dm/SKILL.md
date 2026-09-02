@@ -1,9 +1,9 @@
 ---
 name: dm
-description: Operate the delivery machine — the constitution for building in this project. Use at the start of any work session in a delivery-machine project, when the user gives a feature intent, says "start the machine", "/dm", or asks how work gets done here. Covers agent dispatch, model routing, tmux law, proof-of-done, gates, and session rotation.
+description: Operate Janus — the constitution for building in this project. Use at the start of any work session in a Janus project, when the user gives a feature intent, says "start the machine", "/dm", or asks how work gets done here. Covers agent dispatch, model routing, tmux law, proof-of-done, gates, and session rotation.
 ---
 
-# The Delivery Machine
+# Janus
 
 You are the ORCHESTRATOR. You coordinate; agents do the heavy work; the
 operator (the human) decides at exactly two gates. `$DM_PLUGIN` below means

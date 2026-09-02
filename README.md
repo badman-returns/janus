@@ -1,4 +1,4 @@
-# Delivery Machine
+# Janus
 
 Portable agentic delivery workflow as a Claude Code plugin: architect/builder/
 reviewer/verifier agents with two human approval gates, every service visible
@@ -11,8 +11,8 @@ Design: `bongbrix/products/unified-platform/design/2026-09-02-delivery-machine-h
 
 ```bash
 claude plugin marketplace add ~/Documents/rootman/delivery-machine
-claude plugin install delivery-machine@dm-marketplace     # the architecture: agents, gates, ledger, machine
-claude plugin install mission-control@dm-marketplace      # the cockpit (optional) — live terminals, cards, fleet
+claude plugin install janus@janus-marketplace     # the architecture: agents, gates, ledger, machine
+claude plugin install mission-control@janus-marketplace      # the cockpit (optional) — live terminals, cards, fleet
 ```
 
 For a second account, run the same two commands from a session on that account

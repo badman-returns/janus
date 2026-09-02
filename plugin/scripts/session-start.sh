@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # SessionStart hook — inject handoff + machine status into new/compacted
-# sessions. Silent no-op outside a delivery-machine project.
+# sessions. Silent no-op outside a Janus project.
 set -uo pipefail
 [ -d .delivery ] || exit 0
 PROJ=$(python3 -c "import json;print(json.load(open('.delivery/config.json'))['project'])" 2>/dev/null || basename "$PWD")
-echo "DELIVERY MACHINE PROJECT ($PROJ). Operate per the /dm skill: approval gates, agents for real work, services in tmux only, proof before done."
+echo "JANUS PROJECT ($PROJ). Operate per the /dm skill: approval gates, agents for real work, services in tmux only, proof before done."
 if tmux has-session -t "dm-$PROJ" 2>/dev/null; then
   echo "Machine RUNNING — windows: $(tmux list-windows -t "dm-$PROJ" -F '#W' | tr '\n' ' ')"
 else

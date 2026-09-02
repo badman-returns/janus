@@ -1,6 +1,6 @@
 {
   "name": "mission-control",
-  "description": "The cockpit for the delivery machine: live terminals, gates and questions as cards, proof gallery, fleet page. Optional — the delivery-machine plugin runs without it.",
-  "version": "0.5.7",
+  "description": "The cockpit for Janus: live terminals, gates and questions as cards, proof gallery, fleet page. Optional — the janus plugin runs without it.",
+  "version": "0.6.0",
   "author": { "name": "Trishnangshu Goswami" }
 }
