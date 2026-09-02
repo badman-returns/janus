@@ -31,10 +31,17 @@ intent → dm-architect (spec + slices) → GATE 1: operator approves plan
 
 - **Gates stop and wait.** Present the plan / the proof folder, then ask. Never present-and-proceed.
 - On verifier FAIL → back to the same builder with the failure. Log the loop.
-- After each agent completes, append one line to `.delivery/runs.jsonl`:
-  `{"ts":"<iso>","agent":"dm-builder","slice":"<name>","status":"done|failed","note":"<10 words>"}`
+- After each agent completes, log it through the ledger script — never by hand:
+  `bash "$DM_PLUGIN/scripts/run-log.sh" dm-builder <slice> built "<note>"` (reviewer: `reviewed`/`failed`,
+  builder fixing a rejection: `fixed`). `done` is written only as
+  `bash "$DM_PLUGIN/scripts/run-log.sh" dm-verifier <slice> done "<note>"` after the verifier has written
+  `proof/<slice>/README.md`; the script refuses it from anyone else, or when the README is older than the
+  slice's newest commit. A refused run-log means the slice is not done — go back to the builder.
+- Gate 2 is opened with `bash "$DM_PLUGIN/scripts/dm-gate.sh" <slice>`: it re-checks the proof is fresh, writes
+  `gate-<slice>-proof.txt` to the inbox and pings the phone. If it exits 2, there is no gate — fix the proof first.
+  The orchestrator never writes `runs.jsonl` or a Gate 2 file by hand.
 - Decisions the operator makes get a numbered line in `.delivery/decisions.md` (`D-<n>: <decision> — <date>`).
-- At a gate, also push a phone notification: `bash "$DM_PLUGIN/scripts/notify.sh" "GATE: <what's waiting>"`.
+- At Gate 1, also push a phone notification: `bash "$DM_PLUGIN/scripts/notify.sh" "GATE: <what's waiting>"` (`dm-gate.sh` does this for Gate 2).
 
 ## Agent dispatch — decide yourself, never ask
 
@@ -59,7 +66,7 @@ You and every agent NEVER run a server, database, watcher, or anything long-live
 
 ## Proof-of-done
 
-A feature is done when `proof/<slice>/` exists with verifier-generated screenshots and a README mapping each artifact to the claim it proves — and the operator has seen it (Gate 2). Never report done without it. Never fabricate proof.
+A feature is done when `proof/<slice>/` exists with verifier-generated screenshots and a README mapping each artifact to the claim it proves, `run-log.sh … dm-verifier <slice> done` accepted it, and the operator has approved the gate `dm-gate.sh` opened (Gate 2). Never report done without it. Never fabricate proof.
 
 ## Session rotation
 

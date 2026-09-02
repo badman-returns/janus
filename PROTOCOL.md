@@ -20,7 +20,7 @@ is exported as `CLAUDE_CONFIG_DIR` for every Claude the machine starts.
 
 | file | written by | body | consumed by |
 |---|---|---|---|
-| `gate-<topic>.txt` | orchestrator | plain text: what is waiting, APPROVE/REJECT instructions | operator (dashboard, phone, or `echo` into a reply) |
+| `gate-<topic>.txt` | orchestrator (Gate 1); `dm-gate.sh` as `gate-<slice>-proof.txt` (Gate 2) | plain text: what is waiting, APPROVE/REJECT instructions | operator (dashboard, phone, or `echo` into a reply) |
 | `ask-<ms>-<slug>.txt` | `ask.sh` hook | JSON `{"kind":"ask"\|"permission","title":…,"questions":[{"question":…,"options":[…],"multi":bool}]}` | operator |
 | `reply-<ms>-<slug(name)>.txt` | operator | line 1 `RE: <gate or ask filename>`, rest = answer (`APPROVE`, `REJECT: note`, option label, `ALLOW`, `DENY: note`) | orchestrator (gates), `ask.sh` (asks) — the consumer deletes it |
 | `note-<ms>-<slug>.txt` | operator | free text, treated as a typed message | orchestrator |
@@ -36,10 +36,12 @@ Machine → operator prose. One markdown file per answer; the dashboard shows it
 ## `.delivery/runs.jsonl` — the ledger
 One JSON object per line, appended only:
 ```json
-{"ts":"<iso>","agent":"dm-architect|dm-builder|dm-reviewer|dm-verifier|orchestrator","slice":"<name>","status":"done|failed|working","note":"<short>"}
+{"ts":"<iso>","agent":"dm-architect|dm-builder|dm-reviewer|dm-verifier","slice":"<name>","status":"working|built|reviewed|fixed|failed|done","note":"<short>"}
 ```
-Today any agent may write `done`. Planned: `done` only from `dm-verifier` with a fresh
-`proof/<slice>/README.md` (see the tightening plan).
+Written only by `run-log.sh <agent> <slice> <status> <note>`. `done` is accepted only from
+`dm-verifier` and only while `proof/<slice>/README.md` is at least as new as the newest commit on a
+branch named `<slice>` or `*/<slice>` (HEAD if none) — `proof-fresh.sh`. Anything else exits 2 and
+writes nothing.
 
 ## `.delivery/decisions.md`
 `D-<n>: <decision> — <YYYY-MM-DD>`, appended by the orchestrator when the operator decides.
@@ -59,7 +61,9 @@ Architect output. Listed by the dashboard; no shape is imposed.
 
 ## `proof/<slice>/`
 Verifier output: screenshots and a `README.md` mapping each artifact to the claim it proves.
-A slice is done when this exists and the operator has seen it (Gate 2).
+A slice is done when `run-log.sh … done` accepted this and the operator has approved the gate that
+`dm-gate.sh <slice>` opened (Gate 2). `dm-gate.sh` applies the same freshness rule and writes no gate
+file when it fails.
 
 ## tmux
 Session `dm-<project>`. Window names are the contract: `control`, one per service, `mission`,
