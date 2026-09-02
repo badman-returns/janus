@@ -6,7 +6,7 @@
 set -uo pipefail
 [ -d .delivery ] || exit 0
 python3 - <<'EOF'
-import json, os, re, collections, hashlib, time
+import json, os, collections, hashlib
 def lines(p):
     try:
         return [json.loads(l) for l in open(p) if l.strip()]
@@ -18,19 +18,18 @@ misses = []
 if os.path.exists(".delivery/config-miss.log"):
     misses = [l.strip() for l in open(".delivery/config-miss.log") if l.strip()]
 
-def norm(s):
-    s = re.sub(r'[0-9]+', 'N', (s or "").lower())
-    s = re.sub(r'[^a-z ]', ' ', s)
-    return " ".join(w for w in s.split() if len(w) > 3)[:80]
-
+# two repeats count: an agent failing the same slice again, and the same note
+# (first 40 chars) coming back across runs — slice-independent
 counter = collections.Counter()
 sample = {}
+def seen(key, r, weight=1):
+    if key: counter[key] += weight; sample.setdefault(key, r)
 for r in runs:
-    key = norm(r.get("slice","") + " " + r.get("note",""))
-    if key: counter[key]+=1; sample.setdefault(key, r)
+    if r.get("status") == "failed":
+        seen(f"{r.get('agent')} failed on {r.get('slice')}", r)
+    seen((r.get("note") or "")[:40].strip(), r)
 for m in misses:
-    key = norm(m)
-    if key: counter[key]+=2; sample.setdefault(key, {"note": m})   # a config-miss weighs more
+    seen(m[:40].strip(), {"note": m}, 2)   # a config-miss weighs more
 
 os.makedirs(".delivery/skill-candidates", exist_ok=True)
 existing = set(os.listdir(".delivery/skill-candidates"))
