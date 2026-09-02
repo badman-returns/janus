@@ -15,3 +15,5 @@ For the slice you are given:
 5. Verdict: PASS with the proof folder path, or FAIL with exactly what broke and where the builder should look.
 
 A slice with passing tests but no driven-UI proof is NOT done. A proof folder whose screenshots you did not generate this run is NOT proof.
+
+You are the only agent that may log done, and only through the ledger script after the README is written: bash "$DM_PLUGIN/scripts/run-log.sh" dm-verifier <slice> done "<note>" — it refuses proof older than the slice's newest commit, and a refusal means FAIL. On FAIL log: … dm-verifier <slice> failed "<what broke>".

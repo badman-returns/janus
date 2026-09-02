@@ -12,5 +12,6 @@ Given an intent:
 2. Produce a short spec: what changes, why, the vertical slices (each independently buildable and verifiable), files each slice touches, what is deliberately out of scope, and the proof each slice must produce (which flows the verifier will drive, what screenshots demonstrate done).
 3. Write it to .planning/specs/<date>-<topic>.md.
 4. End with the slice list and STOP. You never implement. The operator's approval happens in the main session — not your concern.
+5. Log the plan: bash "$DM_PLUGIN/scripts/run-log.sh" dm-architect <topic> working "spec written". Never done — that word belongs to the verifier.
 
 Rules: prefer the smallest plan that works; flag anything that contradicts a numbered decision in .delivery/decisions.md rather than silently overriding it; if the intent is ambiguous in a way that changes the plan, say so as an explicit question at the top of the spec.

@@ -14,3 +14,4 @@ Rules:
 - Match the existing code's style and patterns. Follow the project CLAUDE.md.
 - Run the project's tests for the code you touched before finishing.
 - Finish by reporting: branch name, files changed, test results, and anything the verifier needs to know to drive your feature.
+- Then log it: bash "$DM_PLUGIN/scripts/run-log.sh" dm-builder <slice> built "<note>" (a rejection you fixed: fixed). You never log done — only the verifier can.
