@@ -48,9 +48,8 @@
   .acct{font:11.5px var(--mono);color:var(--mut);padding-left:12px;border-left:1px solid var(--line)}
   .acct:empty{display:none}
   .state{color:var(--mut);font-size:12.5px}
-  .ctx{display:flex;align-items:center;gap:6px;color:var(--mut);font:11px var(--mono)}
-  .ctxbar{width:52px;height:4px;border-radius:2px;background:var(--line);overflow:hidden}
-  .ctxbar i{display:block;height:100%;width:41%;background:var(--acc);border-radius:2px}
+  .usage{display:flex;gap:6px}
+  .usage .pill .warn{color:var(--warn)} .usage .pill .bad{color:var(--bad)}
   .spacer{flex:1}
   .svc{display:flex;gap:5px;align-items:center;padding:0 6px}
   .svc i{width:6px;height:6px;border-radius:50%;background:var(--ok);display:inline-block}
@@ -272,7 +271,7 @@
   @media (max-width:720px){
     body{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto}
     .bar{height:auto;min-height:48px;flex-wrap:wrap;row-gap:6px;padding:8px 12px}
-    .acct,.state,.ctx,.svc{display:none}
+    .acct,.state,.usage,.svc{display:none}
     .hbtn span{display:none} .hbtn{width:32px;padding:0;justify-content:center}
     .side{grid-row:2;grid-column:1;width:auto!important;height:52px}
     .sd-inner{width:100%!important;flex-direction:row;overflow:auto hidden;border-right:0;border-bottom:1px solid var(--line);padding:8px 10px;gap:4px;align-items:center;box-shadow:none!important}
@@ -293,8 +292,8 @@
   <span class="pdot" id="pdot"></span>
   <span class="proj" id="proj">mission control</span>
   <span class="acct" id="acct" title="Claude account this machine's sessions run on"></span>
+  <span class="usage" id="usage"></span>
   <span class="state" id="stateTxt"></span>
-  <span class="ctx" data-tip="Orchestrator context in use">ctx <span class="ctxbar"><i id="ctxfill"></i></span></span>
   <span class="offpill">reconnecting</span>
   <span class="spacer"></span>
   <span class="svc" id="svcDots" data-tip="Windows running in the machine"></span>
@@ -531,13 +530,14 @@ function drawSide(defs){
   const panels   = keys.filter(k => !isTerm(k));
   const cmdOf = w => ((S.tmux||[]).find(x => x.window===w) || {}).cmd || "";
   const dot = k => `<span class="dot ${/^(zsh|bash|sh|fish)$/.test(cmdOf(win(k)))?"off":""}" title="${esc(cmdOf(win(k))||"idle shell")}"></span>`;
-  const item = (k, label, extra="") => { const t = defs[k], pinned = layout.open.includes(k);
+  const hr5 = w => { const u = (S.usage||[]).find(x => x.window===w); return u && u.hr5!=null ? u.hr5+"%" : null; };
+  const item = (k, label, extra="", cnt) => { const t = defs[k], pinned = layout.open.includes(k), c = cnt ?? t.count;
     return `<div class="sd-i ${layout.focus.includes(k)?"on":""} ${t.alert?"alert":""}" data-nav="${esc(k)}" role="button" tabindex="0" title="${esc(label)} — open · shift-click to split">
-      ${t.icon}${extra}<span class="lb">${esc(label)}</span>${t.count!=null?`<i>${t.count}</i>`:""}
+      ${t.icon}${extra}<span class="lb">${esc(label)}</span>${c!=null?`<i>${esc(c)}</i>`:""}
       <button class="pinb ${pinned?"on":""}" data-pin="${esc(k)}" data-tip="${pinned?"Remove from Overview":"Show in Overview"}" aria-label="Pin to overview">${pinned?ICON.close:ICON.plus}</button></div>`; };
   const nav = (id, label, icon, title) => `<div class="sd-i ${id==="__overview"&&!layout.focus.length?"on":""}" data-nav="${id}" role="button" tabindex="0" title="${esc(title)}">${icon}<span class="lb">${esc(label)}</span></div>`;
   let h = nav("__overview", "Overview", ICON.board, "Overview — every panel you pinned (esc)");
-  h += `<div class="sd-g">Sessions</div>` + sessions.map(k => item(k, win(k), dot(k))).join("")
+  h += `<div class="sd-g">Sessions</div>` + sessions.map(k => item(k, win(k), dot(k), hr5(win(k)))).join("")
      + nav("__new", "New session", ICON.plus, "Start a Claude session inside the machine");
   h += `<div class="sd-g">Services</div>` + (services.map(k => item(k, win(k), dot(k))).join("") || `<div class="sd-g" style="padding-top:2px">none</div>`);
   h += `<div class="sd-g">Machine</div>` + panels.map(k => item(k, defs[k].name)).join("");
@@ -747,6 +747,11 @@ function render(s){
   $("proj").textContent = s.project;
   $("acct").textContent = s.account ? (s.account.email || s.account.dir) +
     (s.account.org && s.account.email && !s.account.org.includes(s.account.email) ? " · " + s.account.org : "") : "";
+  $("usage").innerHTML = (s.usage||[]).map(u => {
+    const pct = v => v==null ? "—" : v+"%";
+    const cls = u.hr5>=95 ? "bad" : u.hr5>=80 ? "warn" : "";   // the 5h window is what stalls a run
+    return `<span class="pill" data-tip="Usage of this session's account: 5-hour window ${pct(u.hr5)}, 7-day ${pct(u.day7)}">${esc(u.window)} · ctx ${pct(u.context)} · 5h <span class="${cls}">${pct(u.hr5)}</span>${u.cost!=null?" · $"+u.cost.toFixed(2):""}</span>`;
+  }).join("");
   const working = (s.runs||[])[0];
   $("stateTxt").textContent = asks(s).length ? asks(s).length+" waiting on you" :
     working && working.status==="working" ? working.agent+" working" : "idle · "+new Date(s.now).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});

@@ -89,17 +89,29 @@ function state() {
     const oa = JSON.parse(fs.readFileSync(path.join(dir, ".claude.json"), "utf8")).oauthAccount || {};
     account = { email: oa.emailAddress || null, org: oa.organizationName || null, dir: cfg.claude_config_dir || "default" };
   } catch {}
+  const tmux = sh(`tmux list-windows -t ${SESSION} -F '#W|#{pane_current_command}' 2>/dev/null`)
+    .split("\n").filter(Boolean).map(l => { const [w, c] = l.split("|"); return { window: w, cmd: c }; });
+  // Claude Code's own status line at the foot of each claude window:
+  // "main* · Fable 5.1 · context 11% · 5hr limit 40% · 7day limit 23% · $11.88" — any field may be missing
+  const usage = tmux.filter(w => w.window.startsWith("claude")).map(w => {
+    const line = sh(`tmux capture-pane -p -t '${SESSION}:${w.window}'`).split("\n")
+      .filter(l => /context \d+%|\d+(hr|day) limit \d+%|\$\d/.test(l)).pop();
+    if (!line) return null;
+    const num = re => { const m = line.match(re); return m ? +m[1] : null; };
+    const words = line.trim().split(/\s+·\s+/).filter(f => !/\d+%|\$\d/.test(f));   // [branch, model]
+    return { window: w.window, model: words[1] || words[0] || null, context: num(/context (\d+)%/),
+             hr5: num(/5hr limit (\d+)%/), day7: num(/7day limit (\d+)%/), cost: num(/\$(\d+(?:\.\d+)?)/) };
+  }).filter(Boolean);
   return {
     project: projName, session: SESSION, now: new Date().toISOString(),
-    ttyd_port: mine.ttyd_port || null, account,
+    ttyd_port: mine.ttyd_port || null, account, usage,
     git: {
       branch: sh("git branch --show-current"),
       status: sh("git status --short | head -25"),
       branches: sh("git branch --no-merged 2>/dev/null | head -10"),
       log: sh("git log --oneline -8"),
     },
-    tmux: sh(`tmux list-windows -t ${SESSION} -F '#W|#{pane_current_command}' 2>/dev/null`)
-      .split("\n").filter(Boolean).map(l => { const [w, c] = l.split("|"); return { window: w, cmd: c }; }),
+    tmux,
     specs: listDir(path.join(PROJ_DIR, ".planning", "specs")),
     notes: listDir(path.join(PROJ_DIR, ".planning", "notes")),
     proof: proofDirs, runs, inbox, replies, activity, agents,
