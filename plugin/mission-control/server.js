@@ -16,6 +16,15 @@ const PROJ_DIR = path.resolve(arg("project", "."));
 const SESSION = arg("session", "dm-" + path.basename(PROJ_DIR));
 const REGISTRY = path.join(process.env.HOME, ".delivery-machine", "registry.json");
 
+const THEME = JSON.parse(fs.readFileSync(path.join(__dirname, "theme.json"), "utf8"));
+// theme.json is the single source: page tokens here, xterm theme via orchestrator → ttyd
+function renderTokens() {
+  const vars = o => Object.entries(o).map(([k, v]) => `--${k}:${v}`).join(";");
+  return `:root{${vars(THEME.dark)};--sans:${THEME.font.sans};--mono:${THEME.font.mono};--fs:${THEME.font.size}px}\n` +
+         `:root[data-theme="light"]{${vars(THEME.light)}}`;
+}
+if (process.argv.includes("--render-tokens")) { process.stdout.write(renderTokens() + "\n"); process.exit(0); }
+
 const sh = (cmd) => {
   try { return execSync(cmd, { cwd: PROJ_DIR, timeout: 4000, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); }
   catch { return ""; }
@@ -66,8 +75,10 @@ function state() {
   try { registry = JSON.parse(fs.readFileSync(REGISTRY, "utf8")); } catch {}
   let projName = path.basename(PROJ_DIR);
   try { projName = JSON.parse(fs.readFileSync(path.join(PROJ_DIR, ".delivery", "config.json"), "utf8")).project || projName; } catch {}
+  const mine = registry[projName] || {};
   return {
     project: projName, session: SESSION, now: new Date().toISOString(),
+    ttyd_port: mine.ttyd_port || null,
     git: {
       branch: sh("git branch --show-current"),
       status: sh("git status --short | head -25"),
@@ -189,7 +200,7 @@ http.createServer((req, res) => {
   }
   if (url === "/") {
     res.writeHead(200, { "content-type": "text/html" });
-    res.end(fs.readFileSync(path.join(__dirname, "index.html")));
+    res.end(fs.readFileSync(path.join(__dirname, "index.html"), "utf8").replace("/*__TOKENS__*/", renderTokens()));
   } else if (url === "/fleet") {
     res.writeHead(200, { "content-type": "text/html" });
     res.end(fs.readFileSync(path.join(__dirname, "fleet.html")));

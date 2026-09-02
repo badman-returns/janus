@@ -6,25 +6,11 @@
 <title>Mission Control</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
 <style>
-  /* skin: tsgoswami.in — near-black, hairline borders, electric lime */
-  :root {
-    --bg:#050505; --surface:#0D0D0D; --card:#101010; --raise:#161616;
-    --line:hsla(0,0%,100%,.08); --line2:hsla(0,0%,100%,.14);
-    --ink:#FAFAFA; --mut:#888; --mut2:#555;
-    --lime:#CDFF52; --lime-hi:#D4FF70; --lime-dim:rgba(205,255,82,.08); --lime-glow:rgba(205,255,82,.14);
-    --warn:#FFB454; --warn-dim:rgba(255,180,84,.1);
-    --bad:#FF6B6B; --bad-dim:rgba(255,107,107,.1);
-    --sans:"Geist",-apple-system,"Segoe UI",sans-serif;
-    --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
-    --r:14px;
-  }
-  :root[data-theme="light"] {
-    --bg:#FAFAFA; --surface:#F0F0F0; --card:#FFFFFF; --raise:#F5F5F5;
-    --line:#E0E0E0; --line2:#CFCFCF; --ink:#0A0A0A; --mut:#666; --mut2:#999;
-    --lime:#84CC16; --lime-hi:#65A30D; --lime-dim:rgba(132,204,22,.1); --lime-glow:rgba(132,204,22,.16);
-    --warn:#D97706; --warn-dim:rgba(217,119,6,.1);
-    --bad:#DC2626; --bad-dim:rgba(220,38,38,.08);
-  }
+  /* tokens come from theme.json — server.js renders them here on every request */
+  /*__TOKENS__*/
+  /* aliases keep the old skin's names alive until the 0.5.3 restyle removes them */
+  :root{--r:10px;--lime:var(--acc);--lime-dim:var(--acc-dim);--lime-hi:var(--acc);--lime-glow:var(--acc-dim);--lime2:var(--acc);
+        --bad-dim:rgba(240,112,95,.10);--card:var(--surface);--surface:var(--raise)}
   *{box-sizing:border-box}
   html{scrollbar-width:thin}
   body{margin:0;background:var(--bg);color:var(--ink);font:13.5px/1.55 var(--sans);
