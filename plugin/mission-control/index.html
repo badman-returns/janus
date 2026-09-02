@@ -32,6 +32,8 @@
   @keyframes br{50%{opacity:.35}}
   @media (prefers-reduced-motion:reduce){.pdot{animation:none}.drawer{transition:none!important}}
   .proj{font-weight:600;font-size:14px;letter-spacing:-.01em}
+  .acct{font:11.5px var(--mono);color:var(--mut);padding-left:10px;border-left:1px solid var(--line)}
+  .acct:empty{display:none}
   .state{color:var(--mut);font-size:12.5px}
   .ctx{display:flex;align-items:center;gap:6px;color:var(--mut);font:11px var(--mono)}
   .ctxbar{width:52px;height:3px;border-radius:2px;background:var(--line);overflow:hidden}
@@ -237,6 +239,7 @@
 <header class="bar">
   <span class="pdot" id="pdot"></span>
   <span class="proj" id="proj">mission control</span>
+  <span class="acct" id="acct" title="Claude account this machine's sessions run on"></span>
   <span class="state" id="stateTxt"></span>
   <span class="ctx" title="orchestrator context">ctx <span class="ctxbar"><i id="ctxfill"></i></span></span>
   <span class="offpill">reconnecting</span>
@@ -400,6 +403,11 @@ function ensureLayout(defs){
   layout.order = order;
 }
 function drawSkeleton(defs){
+  // rebuilding the grid destroys every iframe (ttyd reconnects, xterm flashes its size) —
+  // only do it when the tile set, order, or sizes actually changed; bodies/alerts/counts refresh in fillBodies
+  const sig = JSON.stringify([layout.order, layout.sizes, layout.focus||[]]);
+  if (sig === drawSkeleton.sig && $("grid").children.length) return;
+  drawSkeleton.sig = sig;
   $("grid").innerHTML = layout.order.map(k => {
     const t = defs[k]; const size = layout.sizes[k] || (k.startsWith("term:")?"xl":"m");
     return `<div class="tile ${size} ${t.alert?"alert":""}" data-k="${esc(k)}" draggable="true">
@@ -602,6 +610,8 @@ function render(s){
   S = s; project = s.project;
   document.body.classList.remove("offline"); $("pdot").classList.remove("down");
   $("proj").textContent = s.project;
+  $("acct").textContent = s.account ? (s.account.email || s.account.dir) +
+    (s.account.org && s.account.email && !s.account.org.includes(s.account.email) ? " · " + s.account.org : "") : "";
   const working = (s.runs||[])[0];
   $("stateTxt").textContent = asks(s).length ? asks(s).length+" waiting on you" :
     working && working.status==="working" ? working.agent+" working" : "idle · "+new Date(s.now).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});

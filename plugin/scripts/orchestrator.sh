@@ -58,7 +58,7 @@ if command -v ttyd >/dev/null 2>&1; then
     tmux new-window -t "$SESSION" -n ttyd -c "$PROJ_DIR"
     # 127.0.0.1 on purpose and not configurable: this is a shell in a browser
     tmux send-keys -t "$SESSION:ttyd" \
-      "ttyd -i 127.0.0.1 -p $TTYD_PORT -W -a -t 'fontFamily=Geist Mono, Menlo, monospace' -t fontSize=$XSIZE -t 'theme=$XTHEME' -t disableLeaveAlert=true bash '$PLUGIN_ROOT/scripts/dm-attach.sh'" Enter
+      "bash '$PLUGIN_ROOT/scripts/ttyd-run.sh' -i 127.0.0.1 -p $TTYD_PORT -W -a -t 'fontFamily=Geist Mono, Menlo, monospace' -t fontSize=$XSIZE -t 'theme=$XTHEME' -t disableLeaveAlert=true bash '$PLUGIN_ROOT/scripts/dm-attach.sh'" Enter
   fi
 else
   TTYD_PORT=""
