@@ -42,4 +42,14 @@ bash "$RL" dm-builder x-slice built "built it" || fail "builder built refused"
 [ "$(last)" = "dm-builder built" ] || fail "built line wrong: $(tail -1 .delivery/runs.jsonl)"
 bash "$RL" dm-builder x-slice bogus "x" 2>/dev/null; [ $? -eq 2 ] || fail "unknown status accepted"
 [ "$(lines)" = 3 ] || fail "ledger has $(lines) lines, expected 3"
+
+# agent names were unchecked, so typos became permanent distinct actors in the ledger.
+# The rule is the one already in use: orchestrator, or dm-<role> in lowercase.
+bash "$RL" orchestrator x-slice working "planning" || fail "orchestrator refused"
+bash "$RL" dm-scenario-writer x-slice working "a project's own role" || fail "dm-<role> refused"
+for bad in builder dm_builder dm-Builder DM-BUILDER "" "dm-build er"; do
+  bash "$RL" "$bad" x-slice working "x" 2>/dev/null && fail "accepted bad agent '$bad'"
+done
+[ "$(lines)" = 5 ] || fail "bad agents reached the ledger: $(lines) lines, expected 5"
+
 echo "PASS test_run_log"

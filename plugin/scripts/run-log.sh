@@ -7,6 +7,16 @@
 set -uo pipefail
 [ -d .delivery ] || exit 1
 AGENT=${1:?agent}; SLICE=${2:?slice}; STATUS=${3:?status}; shift 3
+# Agent names were unchecked, so the ledger accumulated whatever was typed. The rule is the
+# one already in use: the orchestrator itself, or a dm-<role> agent. That admits the roles a
+# project adds (dm-scenario-writer) while still rejecting a typo like "builder" or "dm_builder",
+# which would otherwise sit in the ledger as a distinct actor forever.
+case "$AGENT" in
+  orchestrator) ;;
+  # [:lower:] not [a-z]: under a UTF-8 locale the range collates and lets "dm-Builder" through
+  dm-*) case "$AGENT" in *[![:lower:][:digit:]-]*) echo "run-log: bad agent '$AGENT' (lowercase, digits and - only)" >&2; exit 2 ;; esac ;;
+  *) echo "run-log: unknown agent '$AGENT' (orchestrator, or dm-<role>)" >&2; exit 2 ;;
+esac
 case "$STATUS" in
   working|built|reviewed|fixed|failed|done) ;;
   *) echo "run-log: unknown status '$STATUS' (working|built|reviewed|fixed|failed|done)" >&2; exit 2 ;;

@@ -43,12 +43,22 @@ Machine → operator prose. One markdown file per answer; the dashboard shows it
 ## `.delivery/runs.jsonl` — the ledger
 One JSON object per line, appended only:
 ```json
-{"ts":"<iso>","agent":"dm-architect|dm-builder|dm-reviewer|dm-verifier","slice":"<name>","status":"working|built|reviewed|fixed|failed|done","note":"<short>"}
+{"ts":"<iso>","agent":"orchestrator|dm-<role>","slice":"<name>","status":"working|built|reviewed|fixed|failed|done","note":"<short>"}
 ```
-Written only by `run-log.sh <agent> <slice> <status> <note>`. `done` is accepted only from
-`dm-verifier` and only while `proof/<slice>/README.md` is at least as new as the newest commit on a
-branch named `<slice>` or `*/<slice>` (HEAD if none) — `proof-fresh.sh`. Anything else exits 2 and
-writes nothing.
+`agent` is `orchestrator` or `dm-<role>` in lowercase — the four stock roles are `dm-architect`,
+`dm-builder`, `dm-reviewer`, `dm-verifier`, and a project may add its own (`dm-scenario-writer`).
+Exactly these five fields; no others.
+
+Written by `run-log.sh <agent> <slice> <status> <note>`. `done` is accepted only from `dm-verifier`
+and only while `proof/<slice>/README.md` is at least as new as the newest commit on a branch named
+`<slice>` or `*/<slice>` (HEAD if none) — `proof-fresh.sh`. A bad agent, an unknown status, or a
+`done` without fresh proof exits 2 and writes nothing.
+
+Nothing can *stop* an agent with a shell from appending to this file directly, so the guarantee is
+made checkable rather than claimed: `ledger-verify.sh` re-reads the ledger and reports any line
+run-log.sh would not have written, including a `done` whose proof has since gone stale. Entries at
+or before `.delivery/ledger-baseline` (one ISO timestamp, written by `ledger-verify.sh --accept`)
+are summarised as history instead of listed.
 
 ## `.delivery/decisions.md`
 `D-<n>: <decision> — <YYYY-MM-DD>`, appended by the orchestrator when the operator decides.
