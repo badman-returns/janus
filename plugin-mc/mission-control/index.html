@@ -66,6 +66,11 @@
   @keyframes pop{from{opacity:0;transform:translateY(-4px)}}
   .fleetpop a{display:flex;justify-content:space-between;padding:8px 10px;border-radius:var(--r);font-size:12.5px;color:var(--mut)}
   .fleetpop a:hover{background:var(--raise);color:var(--ink)}
+  .fleetpop .fp-r{display:inline-flex;align-items:center;gap:7px;color:var(--mut2)}
+  .fleetpop .fp-w{font:600 10.5px var(--mono);font-style:normal;background:var(--acc);color:var(--acc-ink);
+    border-radius:99px;padding:1px 6px;line-height:1.4}
+  .fp-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--acc);
+    vertical-align:middle;margin-left:1px}
   .fleetpop a.me{color:var(--ink);font-weight:500}
 
   /* ---------- sidebar: 56px icon rail, expands on hover, pin to keep open ---------- */
@@ -809,8 +814,17 @@ function render(s){
     working && working.status==="working" ? working.agent+" working" : "idle · "+new Date(s.now).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"});
   $("svcDots").innerHTML = (s.tmux||[]).map(w=>`<i title="${esc(w.window)}"></i>`).join("") || '<i class="b" title="not running"></i>';
   $("fleetPop").innerHTML = (s.fleet||[]).map(f =>
-    `<a href="http://localhost:${f.port}" class="${f.project===s.project?"me":""}">${esc(f.project)} <span style="float:right;color:var(--mut2)">:${f.port}</span></a>`).join("");
-  $("fleetName").textContent = "fleet · " + (s.fleet||[]).length;
+    `<a href="http://localhost:${f.port}" class="${f.project===s.project?"me":""}">
+       <span>${esc(f.project)}</span>
+       <span class="fp-r">${f.waiting ? `<i class="fp-w">${f.waiting}</i>` : ""}:${f.port}</span></a>`).join("");
+  // a switcher names what is currently selected; the machine you are on is the useful label,
+  // not how many exist. Other machines that want you show as a dot, so the count that matters
+  // is the one you can act on.
+  const elsewhere = (s.fleet||[]).filter(f => f.project !== s.project && f.waiting).length;
+  $("fleetName").innerHTML = esc(s.project || "fleet") + (elsewhere ? ` <i class="fp-dot"></i>` : "");
+  $("fleetBtn").dataset.tip = elsewhere
+    ? `${elsewhere} other machine${elsewhere>1?"s":""} waiting on you`
+    : "Every machine on this host";
   rebuild();
   if (focusedSid && $("drawer").classList.contains("open")) renderAgentHistory(focusedSid);
   else if (focusedSlice && $("drawer").classList.contains("open")) renderSlice(focusedSlice);

@@ -1,6 +1,6 @@
 {
   "name": "janus",
   "description": "Janus: agentic delivery with two human gates — architect/builder/reviewer/verifier agents, one gate on the plan and one on the proof, services visible in tmux, a ledger only the verifier can close, automatic session handoffs. Init a project with /dm-init, start with /dm.",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "author": { "name": "Trishnangshu Goswami" }
 }
