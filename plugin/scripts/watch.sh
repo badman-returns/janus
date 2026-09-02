@@ -22,22 +22,8 @@ while true; do
   # unhandled = note-*/reply-* the orchestrator hasn't consumed
   PENDING=$(ls .delivery/inbox/ 2>/dev/null | grep -E '^(note|reply)-' | wc -l | tr -d ' ')
   if [ "$PENDING" != "0" ] && [ ! -f "$LOCK" ]; then
-    # skip if a run started in the last 90s (a live session is probably on it)
-    RECENT=$(python3 -c "
-import json,time,os
-p='.delivery/runs.jsonl'
-if os.path.exists(p):
-    ls=[l for l in open(p) if l.strip()]
-    if ls:
-        import datetime
-        try:
-            t=json.loads(ls[-1]).get('ts','')
-            dt=datetime.datetime.fromisoformat(t.replace('Z','+00:00'))
-            print(1 if (datetime.datetime.now(datetime.timezone.utc)-dt).total_seconds()<90 else 0)
-        except Exception: print(0)
-    else: print(0)
-else: print(0)")
-    if [ "$RECENT" = "0" ]; then
+    # a live session always takes priority — never dispatch beside one
+    if ! bash "$(dirname "${BASH_SOURCE[0]}")/is-live.sh"; then
       echo "$(date '+%H:%M:%S') — $PENDING inbox item(s), no live session; dispatching headless orchestrator"
       touch "$LOCK"
       # snapshot BEFORE dispatch so notes arriving mid-run are not swallowed

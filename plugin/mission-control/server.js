@@ -59,7 +59,7 @@ function state() {
     try {
       const a = JSON.parse(fs.readFileSync(path.join(agentsDir, f.name), "utf8"));
       const age = (now - new Date(a.ts).getTime()) / 1000;
-      return { ...a, alive: age < 90, idle: age >= 90 && age < 1800, ageSec: Math.round(age) };
+      return { ...a, alive: age < 120, idle: age >= 120 && age < 1800, ageSec: Math.round(age) };
     } catch { return null; }
   }).filter(Boolean).filter(a => a.ageSec < 1800).sort((x, y) => x.ageSec - y.ageSec);
   let registry = {};
