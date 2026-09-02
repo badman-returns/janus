@@ -21,6 +21,21 @@
         ]
       }
     ],
+    "PreToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/ask.sh\" ask", "timeout": 600 }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/ask.sh\" permission", "timeout": 600 }
+        ]
+      }
+    ],
     "PostToolUse": [
       {
         "hooks": [
