@@ -34,6 +34,15 @@ const sh = (cmd) => {
   try { return execSync(cmd, { cwd: PROJ_DIR, timeout: 4000, stdio: ["ignore", "pipe", "ignore"] }).toString().trim(); }
   catch { return ""; }
 };
+// items in a project's inbox that are waiting on the operator — gates and asks, not the
+// replies and notes the operator wrote. The fleet switcher and /api/fleet share this count.
+const waitingIn = (dir) => {
+  try {
+    const ib = path.join(dir, ".delivery", "inbox");
+    return fs.readdirSync(ib).filter(f => !/^(reply|note)-|\.gitkeep/.test(f)
+      && fs.statSync(path.join(ib, f)).isFile()).length;
+  } catch { return 0; }
+};
 const readIf = (p, cap) => {
   try { const s = fs.readFileSync(p, "utf8"); return cap ? s.slice(-cap) : s; }
   catch { return null; }
@@ -122,7 +131,7 @@ function state() {
     proof: proofDirs, runs, inbox, replies, activity, agents, threads,
     decisions: readIf(path.join(PROJ_DIR, ".delivery", "decisions.md"), 4000),
     handoff: readIf(path.join(PROJ_DIR, ".delivery", "HANDOFF.md"), 6000),
-    fleet: Object.entries(registry).map(([k, v]) => ({ project: k, ...v })),
+    fleet: Object.entries(registry).map(([k, v]) => ({ project: k, ...v, waiting: waitingIn(v.dir) })),
   };
 }
 
@@ -285,8 +294,7 @@ http.createServer((req, res) => {
     const rows = Object.entries(reg).map(([k, v]) => {
       let alive = false, waiting = 0;
       try { alive = !!execSync(`tmux has-session -t ${v.session} 2>/dev/null && echo 1`, { timeout: 2000 }).toString().trim(); } catch {}
-      try { const ib = path.join(v.dir, ".delivery", "inbox");
-        waiting = fs.readdirSync(ib).filter(f => !/^(reply|note)-|\.gitkeep/.test(f) && fs.statSync(path.join(ib, f)).isFile()).length; } catch {}
+      waiting = waitingIn(v.dir);
       return { project: k, ...v, alive, waiting };
     });
     res.writeHead(200, { "content-type": "application/json" });
