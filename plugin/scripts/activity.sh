@@ -4,10 +4,12 @@
 # outside a dm project. Usage: activity.sh <EventLabel>  (hook JSON on stdin)
 set -uo pipefail
 [ -d .delivery ] || exit 0
-python3 - "$1" <<'EOF' 2>/dev/null
-import json, sys, time, os
-event = sys.argv[1]
-try: h = json.load(sys.stdin)
+# the heredoc below OWNS stdin, so the hook payload must be read off it first —
+# json.load(sys.stdin) inside would parse this script, not the event
+DM_HOOK_JSON=$(cat) DM_EVENT="$1" python3 - <<'EOF' 2>/dev/null
+import json, time, os
+event = os.environ.get("DM_EVENT", "")
+try: h = json.loads(os.environ.get("DM_HOOK_JSON") or "{}")
 except Exception: h = {}
 
 sid = (h.get("session_id") or "main")[:8]
