@@ -9,13 +9,14 @@ set -uo pipefail
 SLICE=${1:?slice}
 HERE=$(cd "$(dirname "$0")" && pwd)
 BRANCH=$(bash "$HERE/proof-fresh.sh" "$SLICE") || exit 2
+PROOF=$(python3 -c "import json;print(json.load(open('.delivery/config.json')).get('proof_dir') or 'proof')" 2>/dev/null || echo proof)
 mkdir -p .delivery/inbox
 {
   echo "GATE 2 — review proof for $SLICE"
   echo
   echo "branch: $BRANCH"
-  echo "proof/$SLICE/:"
-  ls -1 "proof/$SLICE" | sed 's/^/  /'
+  echo "$PROOF/$SLICE/:"
+  ls -1 "$PROOF/$SLICE" | sed 's/^/  /'
   echo
   echo "APPROVE / REJECT with note"
 } > ".delivery/inbox/gate-$SLICE-proof.txt"

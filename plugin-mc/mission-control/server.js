@@ -17,6 +17,9 @@ const SESSION = arg("session", "dm-" + path.basename(PROJ_DIR));
 const REGISTRY = path.join(process.env.HOME, ".delivery-machine", "registry.json");
 // the machine's scripts live in the delivery-machine plugin, not here — the orchestrator passes the path
 const SCRIPTS = path.resolve(arg("scripts", path.join(__dirname, "..", "..", "plugin", "scripts")));
+// proof may live outside the machine's root (config proof_dir, e.g. "../proof" when the machine runs in app/)
+const PROOF = (() => { try { return path.resolve(PROJ_DIR, JSON.parse(fs.readFileSync(path.join(PROJ_DIR, ".delivery", "config.json"), "utf8")).proof_dir || "proof"); }
+                       catch { return path.join(PROJ_DIR, "proof"); } })();
 
 const THEME = JSON.parse(fs.readFileSync(path.join(__dirname, "theme.json"), "utf8"));
 // theme.json is the single source: page tokens here, xterm theme via orchestrator → ttyd
@@ -45,10 +48,10 @@ const listDir = (p) => {
 };
 
 function state() {
-  const proofDirs = listDir(path.join(PROJ_DIR, "proof")).filter(e => e.dir).map(e => ({
+  const proofDirs = listDir(PROOF).filter(e => e.dir).map(e => ({
     slice: e.name, mtime: e.mtime,
-    files: listDir(path.join(PROJ_DIR, "proof", e.name)).filter(f => !f.dir),
-    readme: readIf(path.join(PROJ_DIR, "proof", e.name, "README.md")),
+    files: listDir(path.join(PROOF, e.name)).filter(f => !f.dir),
+    readme: readIf(path.join(PROOF, e.name, "README.md")),
   }));
   const runsRaw = readIf(path.join(PROJ_DIR, ".delivery", "runs.jsonl"), 20000) || "";
   const runs = runsRaw.split("\n").filter(Boolean).slice(-30).reverse().map(l => {
@@ -113,8 +116,7 @@ const nudge = (() => {
     for (const res of clients) res.write("data: change\n\n");
   }, 300); };
 })();
-for (const d of [".delivery", ".planning", "proof"]) {
-  const p = path.join(PROJ_DIR, d);
+for (const p of [path.join(PROJ_DIR, ".delivery"), path.join(PROJ_DIR, ".planning"), PROOF]) {
   try { fs.watch(p, { recursive: true }, nudge); } catch {}
 }
 setInterval(() => { for (const res of clients) res.write("data: tick\n\n"); }, 5000);
@@ -241,8 +243,8 @@ http.createServer((req, res) => {
     clients.add(res);
     req.on("close", () => clients.delete(res));
   } else if (url.startsWith("/proof/")) {
-    const file = path.normalize(path.join(PROJ_DIR, url));
-    if (!file.startsWith(path.join(PROJ_DIR, "proof"))) { res.writeHead(403); return res.end(); }
+    const file = path.normalize(path.join(PROOF, url.slice("/proof/".length)));
+    if (!file.startsWith(PROOF + path.sep)) { res.writeHead(403); return res.end(); }
     try {
       const ext = path.extname(file).toLowerCase();
       const mime = { ".png": "image/png", ".jpg": "image/jpeg", ".gif": "image/gif", ".md": "text/plain" }[ext] || "application/octet-stream";
