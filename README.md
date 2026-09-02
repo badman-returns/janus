@@ -18,6 +18,9 @@ claude plugin install mission-control@dm-marketplace      # the cockpit (optiona
 For a second account, run the same two commands from a session on that account
 (or with its `CLAUDE_CONFIG_DIR` active).
 
+Day-to-day operation, start/stop, and reading the state without the cockpit: **`GUIDE.md`**.
+The file contract between the agent layer, the machine and the cockpit: **`PROTOCOL.md`**.
+
 ## Use in any project
 
 ```
