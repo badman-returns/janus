@@ -10,5 +10,9 @@ if tmux list-windows -t "$SESSION" -F '#W' | grep -qx "$NAME"; then
 else
   tmux new-window -t "$SESSION" -n "$NAME" -c "$PWD"
 fi
-tmux send-keys -t "$SESSION:$NAME" "$*" Enter
+PRE=""   # keychain secrets only when config asks; other projects see the command unchanged
+if [ "$(python3 -c "import json;print(bool(json.load(open('.delivery/config.json')).get('secrets')))")" = True ]; then
+  PRE="eval \"\$(bash '$(cd "$(dirname "$0")" && pwd)/secrets-env.sh')\"; "
+fi
+tmux send-keys -t "$SESSION:$NAME" "$PRE$*" Enter
 echo "running in tmux $SESSION:$NAME — logs: tmux capture-pane -p -t $SESSION:$NAME"

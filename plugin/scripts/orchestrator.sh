@@ -33,13 +33,17 @@ if ! tmux has-session -t "$SESSION" 2>/dev/null; then
   tmux new-session -d -s "$SESSION" -n control -c "$PROJ_DIR"
   tmux send-keys -t "$SESSION:control" "echo delivery-machine control pane — $PROJ" Enter
 fi
+PRE=""   # keychain secrets only when config asks; other projects see the command unchanged
+if [ "$(python3 -c "import json;print(bool(json.load(open('$CONF')).get('secrets')))")" = True ]; then
+  PRE="eval \"\$(bash '$PLUGIN_ROOT/scripts/secrets-env.sh')\"; "
+fi
 python3 -c "
 import json
 for name, cmd in json.load(open('$CONF')).get('services', {}).items():
     print(f'{name}\t{cmd}')" | while IFS=$'\t' read -r name cmd; do
   if ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "$name"; then
     tmux new-window -t "$SESSION" -n "$name" -c "$PROJ_DIR"
-    tmux send-keys -t "$SESSION:$name" "$cmd" Enter
+    tmux send-keys -t "$SESSION:$name" "$PRE$cmd" Enter
   fi
 done
 

@@ -16,6 +16,13 @@ All paths are relative to the project root. Timestamps are ISO-8601 UTC unless n
 `project` names the tmux session `dm-<project>`. `services` become windows. `claude_config_dir`
 is exported as `CLAUDE_CONFIG_DIR` for every Claude the machine starts.
 
+Optional: `"secrets": { "<ENV_VAR>": "<name>", ... }`. Each value names a macOS keychain generic
+password `dm:<project>:<name>` whose password is the base64 of the secret (`security add-generic-password
+-a "$USER" -s "dm:<project>:<name>" -w "$(base64 < file)" -U`). When the map is non-empty, every service
+window and every `dm-run.sh` command is prefixed with `eval "$(bash <plugin>/scripts/secrets-env.sh)"`,
+which exports each entry; a missing item is a warning on stderr, never a failure. Values are never
+written to any file.
+
 ## `.delivery/inbox/` — the only write path from operator to machine
 
 | file | written by | body | consumed by |
