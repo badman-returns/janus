@@ -76,9 +76,17 @@ function state() {
   let projName = path.basename(PROJ_DIR);
   try { projName = JSON.parse(fs.readFileSync(path.join(PROJ_DIR, ".delivery", "config.json"), "utf8")).project || projName; } catch {}
   const mine = registry[projName] || {};
+  // which Claude account this machine's sessions run on: <claude_config_dir>/.claude.json
+  let account = null;
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(PROJ_DIR, ".delivery", "config.json"), "utf8"));
+    const dir = cfg.claude_config_dir ? cfg.claude_config_dir.replace(/^~/, process.env.HOME) : process.env.HOME;
+    const oa = JSON.parse(fs.readFileSync(path.join(dir, ".claude.json"), "utf8")).oauthAccount || {};
+    account = { email: oa.emailAddress || null, org: oa.organizationName || null, dir: cfg.claude_config_dir || "default" };
+  } catch {}
   return {
     project: projName, session: SESSION, now: new Date().toISOString(),
-    ttyd_port: mine.ttyd_port || null,
+    ttyd_port: mine.ttyd_port || null, account,
     git: {
       branch: sh("git branch --show-current"),
       status: sh("git status --short | head -25"),
