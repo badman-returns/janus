@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fleet · Mission Control</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
   /* tokens come from theme.json — server.js renders them here on every request */
   /*__TOKENS__*/
@@ -13,7 +13,7 @@
   .head{display:flex;align-items:center;gap:12px;margin-bottom:4px}
   .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
   h1{font-size:20px;font-weight:600;letter-spacing:-.01em;margin:0}
-  .sub{color:var(--mut);font:12px var(--mono);margin:0 0 26px}
+  .sub{color:var(--mut);font:500 12px var(--mono);margin:0 0 26px}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
   a.card{border:1px solid var(--line);border-radius:4px;background:var(--surface);padding:16px 18px;text-decoration:none;color:inherit;
     display:block;transition:border-color .16s,transform .16s}
@@ -24,14 +24,14 @@
   .sd{width:7px;height:7px;border-radius:50%;flex:none;background:var(--mut2)}
   .sd.up{background:var(--ok)}
   .cn b{font-size:14px;font-weight:500}
-  .pill{margin-left:auto;font:500 11px var(--mono);line-height:1;padding:3px 8px;border-radius:99px;border:1px solid var(--line2);color:var(--mut)}
+  .pill{margin-left:auto;font:500 11.5px var(--mono);line-height:1;padding:3px 8px;border-radius:99px;border:1px solid var(--line2);color:var(--mut)}
   .pill.acc{background:var(--acc);color:var(--acc-ink);border-color:transparent}
-  .meta{font:11.5px var(--mono);color:var(--mut);display:flex;flex-direction:column;gap:4px}
+  .meta{font:500 11.5px var(--mono);color:var(--mut);display:flex;flex-direction:column;gap:4px}
   .meta .r{display:flex;justify-content:space-between}
   .meta .r span:last-child{color:var(--ink)}
   .empty{color:var(--mut);padding:40px 0;font-size:13px}
   .empty b{font-weight:500;color:var(--ink)}
-  .foot{margin-top:24px;font:11.5px var(--mono);color:var(--mut2)}
+  .foot{margin-top:24px;font:500 11.5px var(--mono);color:var(--mut2)}
 </style></head><body>
 <div class="wrap">
   <div class="head"><span class="dot"></span><h1>Fleet</h1></div>

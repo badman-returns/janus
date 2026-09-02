@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mission Control</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
 <style>
   /* tokens come from theme.json — server.js renders them here on every request */
   /*__TOKENS__*/
@@ -34,7 +34,7 @@
 
   /* one pill, everywhere a count or a state is shown */
   .pill,.cnt,.tag,.nbadge,.chip i{display:inline-flex;align-items:center;justify-content:center;gap:5px;
-    font:500 11px var(--mono);font-style:normal;line-height:1;padding:3px 7px;border-radius:99px;
+    font:500 11.5px var(--mono);font-style:normal;line-height:1;padding:3px 7px;border-radius:99px;
     border:1px solid var(--line2);color:var(--mut);background:none;white-space:nowrap}
   .pill.acc,.nbadge,.tile.alert .cnt{background:var(--acc);color:var(--acc-ink);border-color:transparent}
   .nbadge:empty{display:none}
@@ -45,7 +45,7 @@
   .pdot{width:8px;height:8px;border-radius:50%;background:var(--ok);flex:none;box-shadow:0 0 0 3px var(--ok-dim)}
   .pdot.down{background:var(--bad);box-shadow:0 0 0 3px var(--bad-dim)}
   .proj{font-weight:600;font-size:14px;letter-spacing:-.01em}
-  .acct{font:11.5px var(--mono);color:var(--mut);padding-left:12px;border-left:1px solid var(--line)}
+  .acct{font:500 11.5px var(--mono);color:var(--mut);padding-left:12px;border-left:1px solid var(--line)}
   .acct:empty{display:none}
   .state{color:var(--mut);font-size:12.5px}
   .usage{display:flex;gap:6px}
@@ -124,7 +124,7 @@
   .t-b{flex:1;overflow:auto;min-height:0;padding:10px 12px;display:flex;flex-direction:column;scrollbar-width:thin}
   .t-b.nopad{padding:0;background:var(--term)}   /* the ground continues into the terminal — no seam */
   .empty{color:var(--mut);font-size:12.5px;padding:8px 0;line-height:1.5}
-  .empty .cmd{font:11.5px var(--mono);color:var(--ink);background:var(--raise);border-radius:var(--r);padding:1px 7px}
+  .empty .cmd{font:500 11.5px var(--mono);color:var(--ink);background:var(--raise);border-radius:var(--r);padding:1px 7px}
 
   /* focus mode: one (or two) tiles fill the main area */
   body.focusmode .gridwrap{display:flex;min-height:0}
@@ -143,27 +143,27 @@
   .agent .adot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--mut2)}
   .agent .adot.on{background:var(--ok);box-shadow:0 0 0 3px var(--ok-dim)} .agent .adot.idle{background:var(--warn)}
   .agent .aid{font:500 11.5px var(--mono);flex:none}
-  .agent .arole{font:10.5px var(--mono);color:var(--mut2);border:1px solid var(--line);border-radius:var(--r);padding:1px 6px;flex:none}
+  .agent .arole{font:500 10.5px var(--mono);color:var(--mut2);border:1px solid var(--line);border-radius:var(--r);padding:1px 6px;flex:none}
   .agent .adetail{color:var(--mut);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
-  .agent .awhen{font:10.5px var(--mono);color:var(--mut2);margin-left:auto;flex:none}
+  .agent .awhen{font:500 10.5px var(--mono);color:var(--mut2);margin-left:auto;flex:none}
   .agent[data-agent]{cursor:pointer;margin:0 -6px;padding-left:6px;padding-right:6px;border-radius:var(--r2);transition:background var(--t)}
   .agent[data-agent]:hover{background:var(--raise)}
   .aevt{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);align-items:baseline;font-size:12.5px}
   .aevt:first-child{border-top:none}
-  .aevt .ev{font:10.5px var(--mono);border-radius:var(--r);padding:1px 7px;flex:none;border:1px solid var(--line);color:var(--mut)}
+  .aevt .ev{font:500 10.5px var(--mono);border-radius:var(--r);padding:1px 7px;flex:none;border:1px solid var(--line);color:var(--mut)}
   .aevt .ev.tool{color:var(--ok);border-color:transparent;background:var(--ok-dim)}
   .aevt .ev.prompt{color:var(--warn);border-color:transparent;background:var(--warn-dim)}
   .aevt .dt{min-width:0;flex:1;word-break:break-word;font:12px var(--mono)}
-  .aevt time{font:10px var(--mono);color:var(--mut2);margin-left:auto;flex:none}
+  .aevt time{font:500 10.5px var(--mono);color:var(--mut2);margin-left:auto;flex:none}
   /* slice story: the drawer at 440px — rows wrap, bodies fold */
   .what a[data-slice]{color:var(--ink);cursor:pointer;border-bottom:1px solid var(--line2);transition:border-color var(--t)}
   .what a[data-slice]:hover{border-color:var(--acc)}
   .story .run{align-items:baseline;flex-wrap:wrap}
   .story .what{white-space:normal;overflow:visible}
   .story .fold{margin:6px 0 4px}
-  .story .fold summary{cursor:pointer;font:11.5px var(--mono);color:var(--mut);list-style:none;padding:3px 0}
+  .story .fold summary{cursor:pointer;font:500 11.5px var(--mono);color:var(--mut);list-style:none;padding:3px 0}
   .story .fold summary::before{content:"▸ "} .story .fold[open] summary::before{content:"▾ "}
-  .story .path{font:11.5px var(--mono);color:var(--mut);word-break:break-all}
+  .story .path{font:500 11.5px var(--mono);color:var(--mut);word-break:break-all}
   .backbtn{border:1px solid var(--line);background:var(--surface);border-radius:var(--r2);padding:4px 10px;font-size:11.5px;color:var(--mut);display:inline-flex;gap:5px;align-items:center}
   .backbtn:hover{color:var(--ink);border-color:var(--line2)}
 
@@ -175,7 +175,7 @@
   .item p{margin:6px 0 0;font-size:13px;white-space:pre-wrap;word-break:break-word}
   .acts{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center}
   .thread{margin-top:10px}
-  .thread summary{cursor:pointer;font:11.5px var(--mono);color:var(--mut);list-style:none}
+  .thread summary{cursor:pointer;font:500 11.5px var(--mono);color:var(--mut);list-style:none}
   .thread pre{margin:8px 0 0;font:11.5px/1.55 var(--mono);color:var(--mut);white-space:pre-wrap;word-break:break-word;border-top:1px solid var(--line);padding-top:8px}
   .btn{border:1px solid var(--line2);background:var(--surface);border-radius:var(--r2);padding:7px 14px;font-weight:500;font-size:12.5px;transition:background var(--t),border-color var(--t)}
   .btn:hover{border-color:var(--mut2);background:var(--raise)}
@@ -198,7 +198,7 @@
   .term .ln{white-space:pre-wrap;word-break:break-all}
   .term .ok{color:var(--ok)}
   .termf{border:0;width:100%;height:100%;display:block;background:var(--term)}
-  .termnote{flex:none;padding:6px 12px;font:11px var(--mono);color:var(--mut);background:var(--surface);border-top:1px solid var(--line)}
+  .termnote{flex:none;padding:6px 12px;font:500 11.5px var(--mono);color:var(--mut);background:var(--surface);border-top:1px solid var(--line)}
 
   /* runs, activity, lists */
   .run,.act{display:flex;gap:9px;padding:7px 0;border-top:1px solid var(--line);font-size:12.5px;align-items:center}
@@ -209,7 +209,7 @@
   .tag.working{color:var(--warn);border-color:transparent;background:var(--warn-dim)}
   .who{font-weight:500;flex:none;font-size:12.5px}
   .what{color:var(--mut);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .when{font:10.5px var(--mono);color:var(--mut2);margin-left:auto;flex:none}
+  .when{font:500 10.5px var(--mono);color:var(--mut2);margin-left:auto;flex:none}
   .rowi{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-top:1px solid var(--line);font-size:12.5px}
   .rowi:first-child{border-top:none}
   .shots{display:flex;gap:8px;overflow-x:auto;padding:4px 0;scrollbar-width:thin}
@@ -247,12 +247,12 @@
   .av{width:26px;height:26px;border-radius:var(--r2);background:var(--raise);border:1px solid var(--line);display:grid;place-items:center;flex:none;color:var(--mut);font-size:12px}
   .av.you{background:var(--acc);color:var(--acc-ink);border-color:transparent}
   .m-b{min-width:0;flex:1}
-  .m-h{font:10.5px var(--mono);color:var(--mut2);margin-bottom:2px}
+  .m-h{font:500 10.5px var(--mono);color:var(--mut2);margin-bottom:2px}
   .m-h b{color:var(--mut);font-weight:500}
   .bub{background:var(--bg);border:1px solid var(--line);border-radius:var(--r2);padding:8px 12px;font-size:12.5px;word-break:break-word;white-space:pre-wrap}
   .bub.gate{border-color:var(--acc)}
   .bub.you{background:var(--raise);border-color:transparent}
-  .dayrule{display:flex;align-items:center;gap:10px;color:var(--mut2);font:10.5px var(--mono);margin:8px 0}
+  .dayrule{display:flex;align-items:center;gap:10px;color:var(--mut2);font:500 10.5px var(--mono);margin:8px 0}
   .dayrule::before,.dayrule::after{content:"";flex:1;height:1px;background:var(--line)}
 
   /* offline */
@@ -262,7 +262,7 @@
   .dead h1{font-size:19px;font-weight:600;letter-spacing:-.01em}
   .dead p{color:var(--mut)}
   .dead code{font:12px var(--mono);background:var(--surface);border:1px solid var(--line);border-radius:var(--r2);padding:4px 10px}
-  .offpill{display:none;font:500 11px var(--mono);color:var(--bad);border:1px solid var(--bad);border-radius:99px;padding:2px 10px}
+  .offpill{display:none;font:500 11.5px var(--mono);color:var(--bad);border:1px solid var(--bad);border-radius:99px;padding:2px 10px}
   body.offline .offpill{display:inline-block}
 
   /* command palette */
@@ -276,8 +276,8 @@
   .cmdrow .ico{opacity:.6}
   .cmdrow.sel{background:var(--acc-dim);color:var(--ink)}
   .cmdrow.sel .ico{opacity:1;stroke:var(--acc)}
-  .cmdrow .grp{font:10.5px var(--mono);color:var(--mut2);margin-left:auto}
-  .cmdhint{display:flex;gap:14px;padding:8px 14px;border-top:1px solid var(--line);font:10.5px var(--mono);color:var(--mut2)}
+  .cmdrow .grp{font:500 10.5px var(--mono);color:var(--mut2);margin-left:auto}
+  .cmdhint{display:flex;gap:14px;padding:8px 14px;border-top:1px solid var(--line);font:500 10.5px var(--mono);color:var(--mut2)}
 
   /* ---------- small screens: sidebar becomes a horizontal rail above the main area (last, so it wins) ---------- */
   @media (max-width:720px){
@@ -426,7 +426,7 @@ function tileDefs(s){
       h += (s.replies||[]).map(r => `<div class="reply-item"><button class="x" data-dismiss="${esc(r.name)}" data-tip="Dismiss" aria-label="Dismiss">${ICON.close}</button>
         <b class="fn">machine replied</b><p>${esc(r.body)}</p></div>`).join("");
       const out = outbound(s);
-      h += out.map(i => `<div style="font:11px var(--mono);color:var(--mut2);padding:3px 0">↗ ${esc(i.name)} — awaiting pickup</div>`).join("");
+      h += out.map(i => `<div style="font:500 11.5px var(--mono);color:var(--mut2);padding:3px 0">↗ ${esc(i.name)} — awaiting pickup</div>`).join("");
       return h; } };
   (s.tmux||[]).forEach(w => { d["term:"+w.window] = { name:"terminal · "+w.window, icon:ICON.term, nopad:true,
       body(){ return s.ttyd_port
