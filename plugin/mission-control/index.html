@@ -12,7 +12,7 @@
   *{box-sizing:border-box}
   html{scrollbar-width:thin}
   body{margin:0;background:var(--bg);color:var(--ink);font:var(--fs)/1.55 var(--sans);
-       height:100vh;display:flex;flex-direction:column;overflow:hidden;
+       height:100vh;display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden;
        font-feature-settings:"tnum","cv01","cv09","ss03";-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
   button{font:inherit;cursor:pointer;color:inherit}
   a{color:inherit;text-decoration:none}
@@ -29,7 +29,7 @@
   .nbadge:empty{display:none}
 
   /* ---------- top bar ---------- */
-  .bar{display:flex;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--line);
+  .bar{grid-column:1/-1;display:flex;align-items:center;gap:14px;padding:10px 18px;border-bottom:1px solid var(--line);
        background:var(--bg);flex:none;position:relative;z-index:6}
   .pdot{width:7px;height:7px;border-radius:50%;background:var(--ok);flex:none}
   .pdot.down{background:var(--bad)}
@@ -47,7 +47,8 @@
   .pillbtn{display:flex;align-items:center;gap:7px;border:1px solid var(--line);background:none;
            border-radius:99px;padding:5px 13px;font-size:12px;font-weight:500;color:var(--mut)}
   .pillbtn:hover{border-color:var(--line2);color:var(--ink)}
-  @media (max-width:720px){ .acct,.state,.ctx,.svc{display:none} .bar{gap:8px;padding:8px 12px} .pillbtn{padding:5px 9px} }
+  @media (max-width:720px){ .acct,.state,.ctx,.svc{display:none} .bar{gap:8px;padding:8px 12px} .pillbtn{padding:5px 9px}
+    body{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto} .gridwrap{grid-row:3;grid-column:1} .dock{grid-row:4} }
   .fleetmenu{position:relative}
   .fleetpop{position:absolute;top:calc(100% + 6px);right:0;background:var(--surface);border:1px solid var(--line2);
             border-radius:10px;padding:6px;min-width:190px;display:none;box-shadow:0 12px 32px rgba(0,0,0,.35);z-index:20}
@@ -56,47 +57,56 @@
   .fleetpop a:hover{background:var(--raise);color:var(--ink)}
   .fleetpop a.me{color:var(--ink);font-weight:500}
 
-  /* ---------- tile tray / rail ---------- */
-  .tray{display:flex;gap:6px;padding:8px 18px;flex:none;flex-wrap:wrap;align-items:center;
-        border-bottom:1px solid var(--line);background:var(--bg)}
-  .tray .lbl{font:500 11px var(--mono);color:var(--mut2);margin-right:6px}
-  .chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:none;
-        color:var(--mut);border-radius:99px;padding:4px 11px;font-size:12px;font-weight:500;transition:color .12s,border-color .12s,background .12s}
-  .chip .ico{width:13px;height:13px;opacity:.7}
-  .chip:hover{color:var(--ink);border-color:var(--line2)}
-  .chip.on{color:var(--ink);border-color:var(--line2);background:var(--raise)}
-  .chip.on .ico{opacity:1}
-  .chip.on:hover{color:var(--bad);border-color:var(--bad)}
-  .chip.alert{color:var(--acc);border-color:var(--acc)}
-  .chip i{padding:2px 6px}
-  /* focus mode: one (or two) tiles fill the page; the tray becomes an icon rail */
-  body.focusmode{display:grid;grid-template-columns:56px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) auto}
-  body.focusmode .bar{grid-column:1/-1}
-  body.focusmode .tray{grid-row:2;grid-column:1;flex-direction:column;flex-wrap:nowrap;width:56px;border-right:1px solid var(--line);border-bottom:0;padding:10px 8px;gap:6px;overflow-y:auto;overflow-x:hidden;align-items:center;scrollbar-width:none}
-  body.focusmode .gridwrap{grid-row:2;grid-column:2;display:flex;min-height:0}
-  body.focusmode .dock{grid-column:1/-1}
-  body.focusmode .tray .lbl{display:none}
-  body.focusmode .chip{width:40px;height:40px;padding:0;justify-content:center;position:relative;border-radius:9px}
-  body.focusmode .chip .cl{display:none}
-  body.focusmode .chip .ico{width:16px;height:16px}
-  body.focusmode .chip.foc{color:var(--ink);background:var(--raise);border-color:var(--line2)}
-  body.focusmode .chip.on:hover{color:var(--ink);border-color:var(--line2)}
-  body.focusmode .chip i{position:absolute;top:-5px;right:-5px;padding:1px 5px;background:var(--raise);color:var(--mut);border-color:var(--line2)}
-  body.focusmode .chip.alert i{background:var(--acc);color:var(--acc-ink);border-color:transparent}
+  /* ---------- sidebar: the app's navigation. 56px icon rail, expands on hover, pin to keep open ---------- */
+  .side{grid-row:2;grid-column:1;position:relative;width:56px;transition:width .15s ease;z-index:7}
+  .side.pin{width:236px}
+  .side.pin .sd-inner{width:236px}
+  .sd-inner{position:absolute;left:0;top:0;bottom:0;width:56px;overflow:hidden auto;scrollbar-width:none;border-right:1px solid var(--line);background:var(--bg);
+            display:flex;flex-direction:column;gap:2px;padding:8px;transition:width .15s ease}
+  .side:not(.pin):hover .sd-inner{width:236px;box-shadow:16px 0 40px rgba(0,0,0,.28)}
+  .sd-g{font:500 11px/1 var(--mono);color:var(--mut2);padding:12px 10px 5px;white-space:nowrap;overflow:hidden;height:28px;flex:none}
+  .side:not(.pin):not(:hover) .sd-g{height:10px;padding:0}   /* collapsed rail: groups become small gaps */
+  .sd-i{display:flex;align-items:center;gap:10px;height:32px;padding:0 8px;border-radius:8px;color:var(--mut);white-space:nowrap;
+        border:1px solid transparent;position:relative;background:none;width:100%;text-align:left;flex:none}
+  .sd-i:hover{background:var(--raise);color:var(--ink)}
+  .sd-i.on{background:var(--raise);color:var(--ink);border-color:var(--line2)}
+  .sd-i.alert{color:var(--acc)}
+  .sd-i .ico{flex:none;width:16px;height:16px;opacity:.85}
+  .sd-i .dot{position:absolute;left:23px;bottom:7px;width:6px;height:6px;border-radius:50%;background:var(--ok);border:1.5px solid var(--bg)}
+  .sd-i .dot.off{background:var(--mut2)}
+  .sd-i .lb{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:12.5px;opacity:0;transition:opacity .1s}
+  .side.pin .sd-i .lb,.side:hover .sd-i .lb,.side.pin .sd-g,.side:hover .sd-g{opacity:1}
+  .sd-g{opacity:0;transition:opacity .1s}
+  .sd-i i{font:500 10.5px var(--mono);font-style:normal;line-height:1;padding:2px 6px;border-radius:99px;border:1px solid var(--line2);color:var(--mut);flex:none}
+  .sd-i.alert i{background:var(--acc);color:var(--acc-ink);border-color:transparent}
+  .side:not(.pin):not(:hover) .sd-i i{position:absolute;top:2px;right:2px;padding:1px 4px;font-size:9.5px}
+  .sd-i .pinb{flex:none;opacity:0;border:0;background:none;color:var(--mut2);padding:2px 4px;border-radius:5px;font-size:12px;line-height:1}
+  .side.pin .sd-i:hover .pinb,.side:hover .sd-i:hover .pinb{opacity:1}
+  .sd-i .pinb:hover{color:var(--ink);background:var(--line)}
+  .sd-i .pinb.on{opacity:.7;color:var(--ink)}
+  .sd-foot{margin-top:auto;padding-top:8px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:2px;
+           position:sticky;bottom:0;background:var(--bg);flex:none}
+  @media (max-width:720px){
+    .side{grid-row:2;grid-column:1;width:auto!important;height:52px}
+    .sd-inner{width:100%!important;flex-direction:row;overflow:auto hidden;border-right:0;border-bottom:1px solid var(--line);padding:8px 10px;gap:4px;align-items:center;box-shadow:none!important}
+    .sd-g,.sd-i .lb,.sd-i .pinb,.sd-foot .pinside{display:none}
+    .sd-i{width:36px;height:36px;padding:0;justify-content:center}
+    .sd-i i{position:absolute;top:0;right:0;padding:1px 4px;font-size:9.5px}
+    .sd-foot{margin:0 0 0 auto;padding:0;border:0;flex-direction:row}
+  }
+
+  /* focus mode: one (or two) tiles fill the main area */
+  body.focusmode .gridwrap{display:flex;min-height:0}
   body.focusmode .grid{flex:1;grid-template-columns:1fr;grid-auto-rows:minmax(0,1fr);padding:0;gap:0;height:100%;min-width:0;align-content:stretch}
   body.focusmode.split .grid{grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
   body.focusmode .tile.focus{grid-column:auto;height:auto;min-height:0;border:0;border-radius:0}
   @media (max-width:720px){
-    body.focusmode{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto}
-    body.focusmode .tray{grid-row:2;grid-column:1;flex-direction:row;width:auto;border-right:0;border-bottom:1px solid var(--line);overflow-x:auto;overflow-y:hidden;padding:8px 10px;scrollbar-width:none}
-    body.focusmode .gridwrap{grid-row:3;grid-column:1}
-    body.focusmode .dock{grid-row:4}
     body.focusmode.split .grid{grid-template-columns:1fr}
     body.focusmode.split .tile.focus:nth-child(2){display:none}
   }
 
   /* ---------- grid ---------- */
-  .gridwrap{flex:1;overflow-y:auto;min-height:0;background:var(--bg)}
+  .gridwrap{grid-row:2;grid-column:2;overflow-y:auto;min-height:0;min-width:0;background:var(--bg)}
   .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px;padding:14px 18px 20px;align-content:start}
   .tile{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);
         display:flex;flex-direction:column;overflow:hidden;min-width:0}
@@ -157,6 +167,12 @@
   .note-in{flex:1;min-width:120px;border:1px solid var(--line);border-radius:8px;padding:5px 10px;
            font:12px var(--sans);background:var(--bg);color:var(--ink)}
   .note-in:focus{border-color:var(--line2);outline:none}
+  .item.ask{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-dim);background:var(--surface)}
+  .opts{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+  .opt{display:flex;gap:8px;align-items:center;padding:6px 9px;border:1px solid var(--line2);border-radius:7px;font-size:12.5px;cursor:pointer}
+  .opt:hover{border-color:var(--mut2)}
+  .opt:has(input:checked){border-color:var(--acc);background:var(--acc-dim)}
+  .opt input{margin:0;accent-color:var(--acc)}
   .reply-item{border:1px solid var(--line);border-left:2px solid var(--ok);border-radius:9px;
               padding:10px 13px;background:var(--raise);margin-bottom:8px;position:relative}
   .reply-item .x{position:absolute;top:6px;right:8px;border:none;background:none;color:var(--mut2);font-size:13px}
@@ -193,7 +209,7 @@
            font:11.5px/1.55 var(--mono);white-space:pre-wrap;word-break:break-word;margin:0 0 8px;color:var(--ink)}
 
   /* ---------- bottom bar ---------- */
-  .dock{display:flex;gap:9px;padding:10px 18px;border-top:1px solid var(--line);background:var(--bg);flex:none;align-items:flex-end;position:relative;z-index:6}
+  .dock{grid-column:1/-1;display:flex;gap:9px;padding:10px 18px;border-top:1px solid var(--line);background:var(--bg);flex:none;align-items:flex-end;position:relative;z-index:6}
   .dock textarea{flex:1;resize:none;height:42px;max-height:120px;border:1px solid var(--line);border-radius:10px;
                  padding:11px 13px;font:13px var(--sans);background:var(--surface);color:var(--ink)}
   .dock textarea::placeholder{color:var(--mut2)}
@@ -228,7 +244,7 @@
   /* offline */
   .dead{display:none;margin:auto;text-align:center;padding:24px}
   body.offline .dead{display:block}
-  body.offline .gridwrap .grid,body.offline .tray{display:none}
+  body.offline .gridwrap .grid,body.offline .side{display:none}
   .dead h1{font-size:19px;font-weight:600;letter-spacing:-.01em}
   .dead p{color:var(--mut)}
   .dead code{font:12px var(--mono);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:4px 10px}
@@ -274,7 +290,7 @@
     stream <span class="nbadge" id="unread"></span></button>
 </header>
 
-<div class="tray" id="tray"><span class="lbl">tiles</span></div>
+<nav class="side" id="side" aria-label="Navigation"><div class="sd-inner" id="sideInner"></div></nav>
 
 <div class="gridwrap">
   <div class="grid" id="grid"></div>
@@ -330,6 +346,9 @@ const ICON = {
   reply:'<svg class="ico" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="m8 10 3 3 5-5"/></svg>',
   doc:'<svg class="ico" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
   hand:'<svg class="ico" viewBox="0 0 24 24"><path d="M4 12v8h16v-8M12 2v14m0 0 4-4m-4 4-4-4"/></svg>',
+  plus:'<svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  left:'<svg class="ico" viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/><path d="M4 4v16"/></svg>',
+  right:'<svg class="ico" viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/><path d="M4 4v16"/></svg>',
 };
 
 /* ---------------- state + tiles ---------------- */
@@ -345,12 +364,21 @@ function tileDefs(s){
   d.gates = { name:"Waiting on you", icon:ICON.gate, count: asks(s).length,
     alert: asks(s).length>0 || (s.replies||[]).length>0,
     body(){ let h = "";
-      const a = asks(s);
+      // ask-* cards carry a JSON body (question + options) written by the ask.sh hook; gates are plain text
+      const parsed = asks(s).map(i => { let j = null; if (i.name.startsWith("ask-")) { try { j = JSON.parse(i.body); } catch {} } return { ...i, j }; });
+      h += parsed.filter(i => i.j).map(i => `<div class="item ask" data-ask="${esc(i.name)}">
+        <b class="fn">${i.j.kind==="permission"?"permission":"question"} · ${esc(i.j.title||"")}</b>
+        ${(i.j.questions||[]).map((q,qi) => `<p>${esc(q.question)}</p><div class="opts">
+          ${(q.options||[]).map(o => `<label class="opt"><input type="${q.multi?"checkbox":"radio"}" name="q${qi}-${esc(i.name)}" value="${esc(o)}"> ${esc(o)}</label>`).join("")}
+        </div>`).join("")}
+        <div class="acts"><input class="note-in" placeholder="or type an answer…" data-ask-text="${esc(i.name)}">
+        <button class="btn pri" data-ask-send="${esc(i.name)}">Answer</button></div></div>`).join("");
+      const a = parsed.filter(i => !i.j);
       h += a.length ? a.map(i => `<div class="item gate"><b class="fn">${esc(i.name)}</b><p>${esc(i.body)}</p>
         <div class="acts"><button class="btn pri" data-act="approve" data-re="${esc(i.name)}">Approve</button>
         <button class="btn" data-act="reject" data-re="${esc(i.name)}">Reject</button>
         <input class="note-in" placeholder="note…" data-note-for="${esc(i.name)}"></div></div>`).join("")
-        : `<div style="color:var(--mut);font-size:12.5px;padding:2px 0 8px">Nothing needs you — gates land here and ping your phone.</div>`;
+        : (parsed.length ? "" : `<div class="empty">Nothing needs you — gates and questions land here and ping your phone.</div>`);
       h += (s.replies||[]).map(r => `<div class="reply-item"><button class="x" data-dismiss="${esc(r.name)}">✕</button>
         <b class="fn">machine replied</b><p>${esc(r.body)}</p></div>`).join("");
       const out = outbound(s);
@@ -460,19 +488,48 @@ function fillBodies(defs){
   });
   refreshTerms();
 }
-function drawTray(defs){
-  const tray = $("tray");
-  tray.querySelectorAll(".chip").forEach(c=>c.remove());
-  Object.entries(defs).forEach(([k,t]) => tray.insertAdjacentHTML("beforeend",
-    `<button class="chip ${layout.open.includes(k)?"on":""} ${layout.focus.includes(k)?"foc":""} ${t.alert?"alert":""}" data-chip="${esc(k)}" title="${esc(t.name)}${layout.focus.length?" — click to focus, shift-click to split":""}">
-       ${t.icon}<span class="cl">${esc(t.name)}</span>${t.count!=null?`<i>${t.count}</i>`:""}</button>`));
-  tray.querySelectorAll("[data-chip]").forEach(b => b.onclick = e => {
-    const k = b.dataset.chip;
-    if (layout.focus.length) return toggleFocus(k, e.shiftKey);   // rail mode: chips switch the focused tile
+/* sidebar: Overview · Sessions · Services · Machine · System. Click opens (focus), shift-click splits,
+   the ⊞/⊟ pin adds/removes a panel from the Overview grid. */
+function drawSide(defs){
+  $("side").classList.toggle("pin", !!layout.side);
+  const isTerm = k => k.startsWith("term:"), win = k => k.slice(5);
+  const sys = new Set(["control","mission","ttyd","watch"]);
+  const keys = Object.keys(defs);
+  const sessions = keys.filter(k => /^term:claude/.test(k));
+  const services = keys.filter(k => isTerm(k) && !/^term:claude/.test(k) && !sys.has(win(k)));
+  const system   = keys.filter(k => isTerm(k) && sys.has(win(k)));
+  const panels   = keys.filter(k => !isTerm(k));
+  const cmdOf = w => ((S.tmux||[]).find(x => x.window===w) || {}).cmd || "";
+  const dot = k => `<span class="dot ${/^(zsh|bash|sh|fish)$/.test(cmdOf(win(k)))?"off":""}" title="${esc(cmdOf(win(k))||"idle shell")}"></span>`;
+  const item = (k, label, extra="") => { const t = defs[k], pinned = layout.open.includes(k);
+    return `<div class="sd-i ${layout.focus.includes(k)?"on":""} ${t.alert?"alert":""}" data-nav="${esc(k)}" role="button" tabindex="0" title="${esc(label)} — open · shift-click to split">
+      ${t.icon}${extra}<span class="lb">${esc(label)}</span>${t.count!=null?`<i>${t.count}</i>`:""}
+      <button class="pinb ${pinned?"on":""}" data-pin="${esc(k)}" title="${pinned?"remove from Overview":"show in Overview"}">${pinned?"⊟":"⊞"}</button></div>`; };
+  const nav = (id, label, icon, title) => `<div class="sd-i ${id==="__overview"&&!layout.focus.length?"on":""}" data-nav="${id}" role="button" tabindex="0" title="${esc(title)}">${icon}<span class="lb">${esc(label)}</span></div>`;
+  let h = nav("__overview", "Overview", ICON.board, "Overview — every panel you pinned (esc)");
+  h += `<div class="sd-g">Sessions</div>` + sessions.map(k => item(k, win(k), dot(k))).join("")
+     + nav("__new", "New session", ICON.plus, "Start a Claude session inside the machine");
+  h += `<div class="sd-g">Services</div>` + (services.map(k => item(k, win(k), dot(k))).join("") || `<div class="sd-g" style="padding-top:2px">none</div>`);
+  h += `<div class="sd-g">Machine</div>` + panels.map(k => item(k, defs[k].name)).join("");
+  h += `<div class="sd-g">System</div>` + system.map(k => item(k, win(k), dot(k))).join("");
+  h += `<div class="sd-foot">` + nav("__pin", layout.side ? "Unpin sidebar" : "Keep sidebar open", layout.side ? ICON.left : ICON.right, "Pin the sidebar open (it expands on hover otherwise)") + `</div>`;
+  if (drawSide.h === h) return; drawSide.h = h;   // no churn under the pointer on every tick
+  $("sideInner").innerHTML = h;
+  const go = (el, e) => {
+    if (e.target.closest("[data-pin]")) return;
+    const k = el.dataset.nav;
+    if (k === "__overview"){ layout.focus = []; store.save(layout); rebuild(); return; }
+    if (k === "__new") return $("newSess").click();
+    if (k === "__pin"){ layout.side = !layout.side; store.save(layout); rebuild(); return; }
+    toggleFocus(k, e.shiftKey);
+  };
+  $("sideInner").querySelectorAll("[data-nav]").forEach(el => { el.onclick = e => go(el, e);
+    el.onkeydown = e => { if (e.key==="Enter" || e.key===" "){ e.preventDefault(); go(el, e); } }; });
+  $("sideInner").querySelectorAll("[data-pin]").forEach(b => b.onclick = e => { e.stopPropagation();
+    const k = b.dataset.pin;
     layout.open.includes(k) ? (layout.open = layout.open.filter(x=>x!==k), layout.order = layout.order.filter(x=>x!==k))
                             : (layout.open.push(k), layout.order.push(k));
-    store.save(layout); rebuild();
-  });
+    store.save(layout); rebuild(); });
 }
 function wireGrid(defs){
   // size cycle + close
@@ -515,8 +572,16 @@ function wireBody(el){
   el.querySelectorAll("[data-dismiss]").forEach(b => b.onclick = async () => {
     b.disabled = true; await post("/api/replies/dismiss", { name: b.dataset.dismiss });
   });
+  // answer a question/permission card: picked options + free text → reply-*.txt, which ask.sh is polling for
+  el.querySelectorAll("[data-ask-send]").forEach(b => b.onclick = async () => {
+    const name = b.dataset.askSend, card = el.querySelector(`[data-ask="${CSS.escape(name)}"]`);
+    const picked = [...card.querySelectorAll("input:checked")].map(i => i.value);
+    const typed = card.querySelector("[data-ask-text]").value.trim();
+    const text = [...picked, typed].filter(Boolean).join(", "); if (!text) return;
+    b.disabled = true; await post("/api/inbox", { kind:"reply", re:name, text });
+  });
 }
-function rebuild(){ if (!S) return; const defs = tileDefs(S); ensureLayout(defs); drawSkeleton(defs); fillBodies(defs); drawTray(defs); }
+function rebuild(){ if (!S) return; const defs = tileDefs(S); ensureLayout(defs); drawSkeleton(defs); fillBodies(defs); drawSide(defs); }
 
 /* terminals: live poll */
 async function refreshTerms(){
@@ -676,7 +741,8 @@ function cmdActions(){
     }});
     acts.push({ label:"Focus "+t.name, grp:"focus", icon:t.icon, run(){ toggleFocus(k); } });
   });
-  if (layout && layout.focus.length) acts.push({ label:"Exit focus", grp:"focus", icon:ICON.board, run(){ layout.focus=[]; store.save(layout); rebuild(); } });
+  acts.push({ label:"Overview", grp:"focus", icon:ICON.board, run(){ layout.focus=[]; store.save(layout); rebuild(); } });
+  acts.push({ label:(layout && layout.side ? "Unpin" : "Pin")+" sidebar", grp:"action", icon:ICON.right, run(){ layout.side = !layout.side; store.save(layout); rebuild(); } });
   acts.push({ label:"Open stream", grp:"action", icon:ICON.reply, run:()=>toggleDrawer(true) });
   acts.push({ label:"Cycle theme (auto / light / dark)", grp:"action", icon:ICON.doc, run:()=>$("themeBtn").click() });
   acts.push({ label:"Open fleet", grp:"action", icon:ICON.board, run:()=>location.href="/fleet" });
