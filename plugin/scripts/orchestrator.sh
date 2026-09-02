@@ -95,4 +95,5 @@ echo "  session   $SESSION   (tmux attach -t $SESSION)"
 [ -n "$MC" ] && echo "  mission   http://localhost:$PORT"
 if [ -n "${TTYD_PORT:-}" ]; then echo "  terminal  http://127.0.0.1:$TTYD_PORT/?arg=control"; else echo "  terminal  (ttyd missing)"; fi
 tmux list-windows -t "$SESSION" -F '  window    #W'
+bash "$PLUGIN_ROOT/scripts/dm-prune.sh" | sed 's/^/  /' || true
 [ "${1:-}" = "--no-open" ] || open "http://localhost:$PORT" 2>/dev/null || true

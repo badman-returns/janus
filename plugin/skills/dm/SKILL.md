@@ -41,6 +41,7 @@ intent → dm-architect (spec + slices) → GATE 1: operator approves plan
 - Gate 2 is opened with `bash "$DM_PLUGIN/scripts/dm-gate.sh" <slice>`: it re-checks the proof is fresh, writes
   `gate-<slice>-proof.txt` to the inbox and pings the phone. If it exits 2, there is no gate — fix the proof first.
   The orchestrator never writes `runs.jsonl` or a Gate 2 file by hand.
+  After the operator merges the branch, the next `orchestrator.sh` run prunes its worktree (`dm-prune.sh`: merged and clean only; branches stay).
 - Decisions the operator makes get a numbered line in `.delivery/decisions.md` (`D-<n>: <decision> — <date>`).
 - At Gate 1, also push a phone notification: `bash "$DM_PLUGIN/scripts/notify.sh" "GATE: <what's waiting>"` (`dm-gate.sh` does this for Gate 2).
 
