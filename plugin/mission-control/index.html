@@ -144,6 +144,8 @@
   .term{background:#070707;font:11.5px/1.6 var(--mono);color:#C8CFC4;flex:1;min-height:0;overflow:auto;padding:11px 14px;scrollbar-width:thin}
   :root[data-theme="light"] .term{background:#101410;color:#D7DFD2}
   .term .ln{white-space:pre-wrap;word-break:break-all}
+  .termf{border:0;width:100%;height:100%;display:block;background:var(--term)}
+  .termnote{flex:none;padding:6px 12px;font:11px var(--mono);color:var(--mut);border-top:1px solid var(--line)}
   .term .ok{color:var(--lime)}
   .run,.act{display:flex;gap:9px;padding:5.5px 0;border-top:1px solid var(--line);font-size:12.5px;align-items:baseline}
   .run:first-child,.act:first-child{border-top:none}
@@ -333,7 +335,10 @@ function tileDefs(s){
       h += out.map(i => `<div style="font:11px var(--mono);color:var(--mut2);padding:3px 0">↗ ${esc(i.name)} — awaiting pickup</div>`).join("");
       return h; } };
   (s.tmux||[]).forEach(w => { d["term:"+w.window] = { name:"terminal · "+w.window, icon:ICON.term, nopad:true,
-      body(){ return `<div class="term" data-term="${esc(w.window)}"><div class="ln">loading…</div></div>`; } }; });
+      body(){ return s.ttyd_port
+        ? `<iframe class="termf" data-termf="${esc(w.window)}" src="http://127.0.0.1:${s.ttyd_port}/?arg=${encodeURIComponent(w.window)}" title="terminal ${esc(w.window)}" allow="clipboard-read; clipboard-write"></iframe>`
+        : `<div class="term" data-term="${esc(w.window)}"><div class="ln">loading…</div></div>
+           <div class="termnote">read-only snapshot — <span class="cmd">brew install ttyd</span>, then restart the machine, for a live terminal</div>`; } }; });
   d.proof = { name:"Proof", icon:ICON.proof, count:(s.proof||[]).length,
     body(){ return (s.proof||[]).length ? s.proof.map(p => `<div class="slice">
         <div class="sh"><b>${esc(p.slice)}</b><span class="when">${esc(p.mtime)}</span></div>
@@ -395,7 +400,7 @@ function ensureLayout(defs){
 }
 function drawSkeleton(defs){
   $("grid").innerHTML = layout.order.map(k => {
-    const t = defs[k]; const size = layout.sizes[k] || (k==="gates"?"m":k.startsWith("term:")?"m":"m");
+    const t = defs[k]; const size = layout.sizes[k] || (k.startsWith("term:")?"xl":"m");
     return `<div class="tile ${size} ${t.alert?"alert":""}" data-k="${esc(k)}" draggable="true">
       <div class="t-h">${t.icon}<span class="name">${esc(t.name)}</span>
         ${t.count!=null?`<span class="cnt">${t.count}</span>`:""}

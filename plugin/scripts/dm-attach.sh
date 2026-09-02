@@ -10,4 +10,4 @@ SESSION="dm-$PROJ"
 tmux list-windows -t "$SESSION" -F '#W' 2>/dev/null | grep -qx "$W" || { echo "no window '$W' in $SESSION"; exit 1; }
 V="view-$$-$RANDOM"
 unset TMUX   # tmux refuses to nest otherwise; a view is a client, nesting is fine here
-exec tmux new-session -t "$SESSION" -s "$V" \; set-option destroy-unattached on \; select-window -t "$V:$W"
+exec tmux new-session -t "$SESSION" -s "$V" \; set-option destroy-unattached on \; set-option status off \; select-window -t "$V:$W"
