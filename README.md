@@ -50,6 +50,11 @@ The orchestrator alone: `bash <plugin>/scripts/orchestrator.sh` from the project
 every project in `~/.delivery-machine/registry.json` that still has a `.delivery/` comes up,
 no terminal needed (log: `~/.delivery-machine/boot.log`). `install-login.sh --remove` takes it out.
 
+macOS blocks launchd agents from `~/Documents`, `~/Desktop` and `~/Downloads` (the log shows
+`Operation not permitted`). If the plugin or a project lives there, grant **Full Disk Access** to
+`/bin/bash` once (System Settings → Privacy & Security → Full Disk Access → `+` → ⌘⇧G → `/bin/bash`),
+then `launchctl kickstart -k gui/$(id -u)/com.delivery-machine.boot`.
+
 ## What the operator does
 
 Give intent → approve the architect's plan (gate 1) → review the generated

@@ -31,3 +31,6 @@ launchctl unload "$PLIST" 2>/dev/null || true
 launchctl load "$PLIST"
 echo "installed $PLIST (runs at login; log: $LOG)"
 echo "remove:  launchctl unload $PLIST && rm $PLIST   (or: bash $HERE/install-login.sh --remove)"
+case "$HERE" in "$HOME/Documents"*|"$HOME/Desktop"*|"$HOME/Downloads"*)
+  echo "note: macOS blocks launchd from ~/Documents — grant Full Disk Access to /bin/bash once (System Settings → Privacy & Security),"
+  echo "      then: launchctl kickstart -k gui/\$(id -u)/$LABEL   (see README, Boot at login)";; esac
