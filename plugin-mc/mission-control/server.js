@@ -121,6 +121,32 @@ function state() {
   };
 }
 
+// one slice, spec → ledger → branch → proof → decisions, every source the machine writes
+function sliceStory(name) {
+  const q = s => s.replace(/'/g, "'\\''");
+  const lines = f => (readIf(f) || "").split("\n").filter(Boolean);
+  const runs = lines(path.join(PROJ_DIR, ".delivery", "runs.jsonl"))
+    .map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(r => r && r.slice === name);
+  const specDir = path.join(PROJ_DIR, ".planning", "specs");
+  const sf = listDir(specDir).find(f => !f.dir && f.name.includes(name));   // listDir is newest first
+  const spec = sf ? { name: sf.name, path: path.join(".planning", "specs", sf.name), body: (readIf(path.join(specDir, sf.name)) || "").slice(0, 4000) } : null;
+  // decisions that name the slice, or carry a D-id the ledger or the spec refers to
+  const dids = new Set(((runs.map(r => r.note).join(" ") + " " + (spec ? spec.body : "")).match(/\bD-\d+\b/g) || []));
+  const decisions = lines(path.join(PROJ_DIR, ".delivery", "decisions.md"))
+    .filter(l => l.includes(name) || [...dids].some(d => new RegExp("\\b" + d + "\\b").test(l)));
+  const bname = sh("git for-each-ref --format='%(refname:short)' refs/heads").split("\n")
+    .find(b => b === name || b.endsWith("/" + name)) || null;
+  const commits = bname ? sh(`git log -20 --format='%h|%s|%cI' '${q(bname)}'`).split("\n").filter(Boolean)
+    .map(l => { const [sha, subject, when] = l.split("|"); return { sha, subject, when }; }) : [];
+  const pdir = path.join(PROOF, name);
+  const proof = { dir: path.relative(PROJ_DIR, pdir), files: listDir(pdir).filter(f => !f.dir).map(f => f.name),
+                  readme: (readIf(path.join(pdir, "README.md")) || "").slice(0, 4000) || null };
+  const mentions = (dir, kind) => listDir(dir).filter(f => !f.dir).map(f => ({ name: f.name, kind, body: (readIf(path.join(dir, f.name)) || "").slice(0, 2000) }))
+    .filter(f => f.name.includes(name) || f.body.includes(name));
+  const gates = [...mentions(path.join(PROJ_DIR, ".delivery", "inbox"), "inbox"), ...mentions(path.join(PROJ_DIR, ".delivery", "threads"), "thread")];
+  return { slice: name, runs, spec, decisions, branch: { name: bname, commits }, proof, gates };
+}
+
 // --- SSE: file changes + a slow heartbeat both nudge the client to refetch
 const clients = new Set();
 const nudge = (() => {
@@ -220,6 +246,12 @@ http.createServer((req, res) => {
       .filter(Boolean).filter(a => !sid || a.sid === sid).slice(-80).reverse();
     res.writeHead(200, { "content-type": "application/json" });
     return res.end(JSON.stringify(rows));
+  }
+  if (url === "/api/slice") {
+    const name = new URL(req.url, "http://x").searchParams.get("name") || "";
+    if (!/^[\w.-]+$/.test(name)) { res.writeHead(400); return res.end("bad name"); }
+    res.writeHead(200, { "content-type": "application/json" });
+    return res.end(JSON.stringify(sliceStory(name)));
   }
   if (url === "/api/logs") {
     const w = new URL(req.url, "http://x").searchParams.get("w") || "";
