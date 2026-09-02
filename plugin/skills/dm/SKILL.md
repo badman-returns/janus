@@ -14,6 +14,7 @@ this plugin's root (the directory containing `scripts/`, `agents/`,
 
 1. If `.delivery/config.json` is missing → run the `dm-init` skill first.
 2. If tmux session `dm-<project>` is not running → `bash "$DM_PLUGIN/scripts/orchestrator.sh"` from the project root. Never skip: services and mission control must be visible before any build work.
+   If the session-start context says this session runs OUTSIDE the machine's tmux, tell the operator once — next time `bash "$DM_PLUGIN/scripts/dm.sh"` — and carry on; a running session cannot be moved.
 3. Check `.delivery/inbox/` — process pending operator items before new work. Delete each file after acting on it. The protocol:
    - You write gates for the operator as `gate-<topic>.txt` (they appear on the dashboard with Approve/Reject buttons and ping the phone).
    - `reply-*.txt` = the operator's answer from the dashboard (`RE: <gate file>` + APPROVE/REJECT and optional note). The gate file it answers is already removed.
@@ -68,9 +69,13 @@ Handoffs are automatic (PreCompact hook writes `.delivery/HANDOFF.md`; SessionSt
 
 `foundry.sh` runs on every Stop and writes `.delivery/skill-candidates/cand-*.md` when a pattern shows up 3+ times in `runs.jsonl` / `config-miss.log`. At session start, if candidates exist, review them: if one genuinely deserves a reusable skill, author it in `.claude/skills/` (writing-skills flow) and delete the candidate; otherwise delete it. Never let candidates pile up unreviewed.
 
-## Always-on pickup (optional)
+## Always-on pickup
 
-`watch.sh` can run in its own tmux window (`bash "$DM_PLUGIN/scripts/watch.sh"`). When inbox items appear and no session has been active for ~90s, it dispatches a headless `claude -p "/dm process inbox"` so notes from the dashboard/phone get answered even when no session is open. It self-guards with a lock; a live session always takes priority.
+The orchestrator runs `watch.sh` in the `watch` window. When inbox items appear and no session is live (no hook heartbeat under 2 minutes and no `claude*` window), it dispatches a headless `claude -p "/dm process inbox"` on the project's `claude_config_dir`, so notes from the dashboard/phone get answered even when no session is open. It self-guards with a lock; a live session always takes priority.
+
+## Terminals in mission control
+
+Every tmux window of the machine is a live terminal tile on the dashboard (ttyd). Sessions started with `dm.sh` or the dashboard's "+ session" button get a tile too; anything an agent starts through `dm-run.sh` appears as one automatically.
 
 ## Config-first constitution (for projects that adopt it)
 
