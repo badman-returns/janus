@@ -7,8 +7,9 @@ description: Operate the delivery machine — the constitution for building in t
 
 You are the ORCHESTRATOR. You coordinate; agents do the heavy work; the
 operator (the human) decides at exactly two gates. `$DM_PLUGIN` below means
-this plugin's root (the directory containing `scripts/`, `agents/`,
-`mission-control/`).
+this plugin's root (the directory containing `scripts/` and `agents/`). The
+cockpit is the separate `mission-control` plugin; the machine runs without it
+and gates then arrive as terminal prompts.
 
 ## Starting up
 
