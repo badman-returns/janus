@@ -99,8 +99,13 @@ it gets no tile, and its gate answers reach it on its next Stop instead of insta
 - **Stop the whole machine**: `bash <plugin>/scripts/dm-stop.sh` — writes the handoff, stops the
   services, kills the session, and marks the registry stopped. `--pause` keeps the session and the
   ledger and only takes the services down. `dm.sh` brings it back. Files are untouched.
-  A bare `tmux kill-session -t dm-<project>` also works but leaves **no handoff** and leaves the
-  registry claiming the machine is running, so the fleet page lies until the next `orchestrator.sh`.
+  A bare `tmux kill-session -t dm-<project>` also works but leaves **no handoff**, leaves the
+  registry claiming the machine is running, and — the one that actually costs you a morning —
+  can **orphan the services**, which keep their ports. The next `orchestrator.sh` then starts a
+  dev server that dies on `EADDRINUSE`, its window scrolls the failure away, and the port still
+  answers `200` from the orphan, so everything looks fine. `dm-stop.sh` sends `C-c` to each
+  service window before killing the session, which is the whole reason it does them in that order.
+  If a service will not bind: `lsof -nP -iTCP:<port> -sTCP:LISTEN` and check the start time.
 - **Stop every machine**: `tmux kill-server` — same caveat, no handoffs. `dm-boot.sh` restores the
   ones not marked stopped.
 
