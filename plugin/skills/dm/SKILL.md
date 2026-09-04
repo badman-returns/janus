@@ -77,6 +77,11 @@ intent → STEP 0: declare checklist (+ gate if triggered)
 - **Log a `dispatched` line before an agent runs**, not only after it finishes:
   `bash "$DM_PLUGIN/scripts/run-log.sh" dm-builder <slice> dispatched "round 1"`. An agent
   nobody has logged is invisible — the operator sees a silence and cannot tell working from stuck.
+- **Doing it inline counts as work, so log that too**:
+  `bash "$DM_PLUGIN/scripts/run-log.sh" orchestrator <slice> working "<what you are doing>"`
+  before you start. The silence the line above is about is not caused only by unlogged agents —
+  a long session where the orchestrator does the work itself writes nothing at all, and the
+  cockpit shows a machine that looks idle while it is busy. One line at the start is enough.
 - On verifier FAIL → back to the same builder with the failure. Log the loop.
 - **Two rounds, then it is the operator's call.** A third failure does not go back to the
   builder: open Gate 2 carrying the failure instead of the proof and let them decide whether

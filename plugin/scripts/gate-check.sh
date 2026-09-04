@@ -48,10 +48,30 @@ def approved_for_current_slice():
             continue
     return False
 
+def versioned(p):
+    """Does any git repo track this path's directory? The budget is about changes someone will
+    have to review, and a scratch file in the session's temp directory is not one — counting it
+    spends the allowance on thinking rather than on changing, and denies the fifth *real* edit of
+    a task that has touched no repo file at all. Found running 0.9.4 against shop-web: one draft
+    artifact under /private/tmp was the only entry in .touched.
+
+    Walk up for a .git rather than testing a root prefix — a machine running in a subdirectory
+    writes to its parent repo constantly (shop-web → ../apps/shop/), and those writes are
+    versioned and do belong in the count. Same distinction 0.9.3 drew for the cockpit's badge,
+    without the subprocess: this runs on the path of every edit."""
+    d = os.path.dirname(os.path.abspath(p))
+    while True:
+        if os.path.exists(os.path.join(d, ".git")):
+            return True
+        parent = os.path.dirname(d)
+        if parent == d:
+            return False
+        d = parent
+
 def main():
     h = json.loads(os.environ.get("DM_HOOK_JSON") or "{}")
     p = (h.get("tool_input") or {}).get("file_path") or ""
-    if not p:
+    if not p or not versioned(p):
         return
     touched = []
     try:

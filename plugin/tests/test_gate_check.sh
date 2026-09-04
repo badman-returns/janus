@@ -8,6 +8,8 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"; S="$HERE/../scripts/gate-check.sh"; CL="$HERE/../scripts/checklist.sh"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 cd "$T"; fail(){ echo "FAIL test_gate_check: $1"; exit 1; }
+# a real project is a repo, and since 0.9.5 only versioned paths count — see `versioned()`
+git init -q .
 mkdir -p .delivery; echo '{"project":"t","gate":{}}' > .delivery/config.json
 
 # one PreToolUse call for a Write to <path>
@@ -47,7 +49,7 @@ out=$(gc src/j.ts); [ -z "$out" ] || fail "approval for the in-flight slice did 
 
 # a guarded file trips it immediately, whatever the count — fresh project, one file
 T2=$(mktemp -d); (
-  cd "$T2"; mkdir -p .delivery; echo '{"project":"t","gate":{}}' > .delivery/config.json
+  cd "$T2"; git init -q .; mkdir -p .delivery; echo '{"project":"t","gate":{}}' > .delivery/config.json
   out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s"}}' "$T2/plugin/scripts/run-log.sh" | bash "$S")
   denied "$out" || { echo "guarded file not denied on the first touch: $out"; exit 1; }
   printf '%s' "$out" | grep -q "guarded" || { echo "deny reason does not say it was guarded: $out"; exit 1; }
@@ -92,12 +94,51 @@ cd "$T"; bash "$HERE/../scripts/session-start.sh" >/dev/null 2>&1
 out=$(gc src/m.ts); [ -z "$out" ] || fail "first file of a new session denied: $out"
 
 
+# ---- only versioned paths count ---------------------------------------------------------------
+# Found running 0.9.4 against shop-web: the single entry in .touched was a draft artifact under
+# /private/tmp. The budget is for changes a reviewer will see; scratch files are not those, and
+# spending the allowance on them denies the fifth REAL edit of a task that has changed nothing.
+T4=$(mktemp -d); SCRATCH=$(mktemp -d); (
+  cd "$T4"; git init -q .; mkdir -p .delivery; echo '{"project":"t","gate":{}}' > .delivery/config.json
+  g(){ printf '{"tool_name":"Write","tool_input":{"file_path":"%s"}}' "$1" | bash "$S"; }
+
+  # a whole session's worth of scratch writes: never denied, never counted
+  for f in a b c d e f g h; do
+    out=$(g "$SCRATCH/draft-$f.html")
+    [ -z "$out" ] || { echo "a scratch file was gated: $out"; exit 1; }
+  done
+  [ ! -e .delivery/.touched ] || { echo ".touched exists after only scratch writes: $(cat .delivery/.touched)"; exit 1; }
+
+  # the repo's own files still count, and still stop at the threshold
+  for f in a b c d; do
+    out=$(g "src/$f.ts"); [ -z "$out" ] || { echo "repo file $f denied under the threshold: $out"; exit 1; }
+  done
+  [ "$(wc -l < .delivery/.touched | tr -d ' ')" = 4 ] || { echo "expected 4 versioned paths: $(cat .delivery/.touched)"; exit 1; }
+  out=$(g src/e.ts); printf '%s' "$out" | grep -q '"permissionDecision": "deny"' \
+    || { echo "5th versioned file not denied: $out"; exit 1; }
+  printf '%s' "$out" | grep -q "past the gate of 4" || { echo "wrong reason: $out"; exit 1; }
+
+  # a path in the PARENT repo counts — a machine in a subdirectory writes to its parent constantly
+  mkdir -p sub/.delivery; echo '{"project":"t","gate":{}}' > sub/.delivery/config.json
+  ( cd sub
+    out=$(printf '{"tool_name":"Write","tool_input":{"file_path":"../src/parent.ts"}}' | bash "$S")
+    [ -z "$out" ] || { echo "first parent-repo write denied: $out"; exit 1; }
+    grep -q "parent.ts" .delivery/.touched || { echo "a tracked parent-repo path was not counted"; exit 1; }
+  ) || exit 1
+
+  # and a scratch file that merely SHARES A NAME with a guarded one is not the guarded one
+  echo '{"project":"t","gate":{"guarded":["run-log.sh"]}}' > .delivery/config.json
+  out=$(g "$SCRATCH/run-log.sh")
+  [ -z "$out" ] || { echo "a scratch copy of a guarded filename was gated: $out"; exit 1; }
+) || fail "versioned-paths case failed (see above)"
+rm -rf "$T4" "$SCRATCH"
+
 # ---- opt-in ---------------------------------------------------------------------------------
 # The gate must never arm itself on a plugin upgrade. Three projects were live on 0.8.0 when this
 # shipped; had an update switched it on, a five-file change in any of them would have started
 # being denied against limits nobody there had chosen.
 T3=$(mktemp -d); (
-  cd "$T3"; mkdir -p .delivery
+  cd "$T3"; git init -q .; mkdir -p .delivery
   many(){ for f in a b c d e f g; do printf '{"tool_name":"Write","tool_input":{"file_path":"src/%s.ts"}}' "$f" | bash "$S"; done; }
 
   echo '{"project":"t"}' > .delivery/config.json          # no gate key at all
