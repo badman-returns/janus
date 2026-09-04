@@ -8,7 +8,7 @@ set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"; S="$HERE/../scripts/gate-check.sh"; CL="$HERE/../scripts/checklist.sh"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 cd "$T"; fail(){ echo "FAIL test_gate_check: $1"; exit 1; }
-mkdir -p .delivery; echo '{"project":"t"}' > .delivery/config.json
+mkdir -p .delivery; echo '{"project":"t","gate":{}}' > .delivery/config.json
 
 # one PreToolUse call for a Write to <path>
 gc(){ printf '{"tool_name":"Write","tool_input":{"file_path":"%s"}}' "$1" | bash "$S"; }
@@ -47,7 +47,7 @@ out=$(gc src/j.ts); [ -z "$out" ] || fail "approval for the in-flight slice did 
 
 # a guarded file trips it immediately, whatever the count — fresh project, one file
 T2=$(mktemp -d); (
-  cd "$T2"; mkdir -p .delivery; echo '{"project":"t"}' > .delivery/config.json
+  cd "$T2"; mkdir -p .delivery; echo '{"project":"t","gate":{}}' > .delivery/config.json
   out=$(printf '{"tool_name":"Edit","tool_input":{"file_path":"%s"}}' "$T2/plugin/scripts/run-log.sh" | bash "$S")
   denied "$out" || { echo "guarded file not denied on the first touch: $out"; exit 1; }
   printf '%s' "$out" | grep -q "guarded" || { echo "deny reason does not say it was guarded: $out"; exit 1; }
@@ -73,7 +73,7 @@ out=$(gc src/k.ts) || fail "malformed config exited $?"
 grep -q "failed open" .delivery/pickup.log || fail "failure not noted in pickup.log: $(cat .delivery/pickup.log 2>&1)"
 # ...and the touch was still recorded, so the gate works again the moment the config is fixed
 grep -q "src/k.ts" .delivery/.touched || fail "touch not recorded while failing open"
-echo '{"project":"t"}' > .delivery/config.json
+echo '{"project":"t","gate":{}}' > .delivery/config.json
 out=$(gc src/l.ts); denied "$out" || fail "gate did not resume once the config parsed: $out"
 
 # hook JSON that is not JSON, and a tool call with no file_path
@@ -90,5 +90,34 @@ cd /; out=$(gc /tmp/x.ts) || fail "outside a project exited $?"
 cd "$T"; bash "$HERE/../scripts/session-start.sh" >/dev/null 2>&1
 [ ! -e .delivery/.touched ] || fail "session-start.sh did not clear .touched"
 out=$(gc src/m.ts); [ -z "$out" ] || fail "first file of a new session denied: $out"
+
+
+# ---- opt-in ---------------------------------------------------------------------------------
+# The gate must never arm itself on a plugin upgrade. Three projects were live on 0.8.0 when this
+# shipped; had an update switched it on, a five-file change in any of them would have started
+# being denied against limits nobody there had chosen.
+T3=$(mktemp -d); (
+  cd "$T3"; mkdir -p .delivery
+  many(){ for f in a b c d e f g; do printf '{"tool_name":"Write","tool_input":{"file_path":"src/%s.ts"}}' "$f" | bash "$S"; done; }
+
+  echo '{"project":"t"}' > .delivery/config.json          # no gate key at all
+  [ -z "$(many)" ] || { echo "no gate key should mean off, but a write was denied"; exit 1; }
+
+  rm -f .delivery/.touched
+  echo '{"project":"t","gate":false}' > .delivery/config.json
+  [ -z "$(many)" ] || { echo '"gate": false did not disable it'; exit 1; }
+
+  rm -f .delivery/.touched
+  echo '{"project":"t","gate":{"max_files":0,"guarded":[]}}' > .delivery/config.json
+  [ -z "$(many)" ] || { echo "max_files 0 with no guarded list should be off"; exit 1; }
+
+  # and an empty object means ON with the defaults — opting in without choosing knobs
+  rm -f .delivery/.touched
+  echo '{"project":"t","gate":{}}' > .delivery/config.json
+  out=$(many)
+  [ -n "$out" ] || { echo '"gate": {} should arm the defaults, nothing was denied'; exit 1; }
+  printf '%s' "$out" | grep -q "past the gate of 4" || { echo "empty gate object did not use the default of 4: $out"; exit 1; }
+) || fail "opt-in case failed (see above)"
+rm -rf "$T3"
 
 echo "PASS test_gate_check"
