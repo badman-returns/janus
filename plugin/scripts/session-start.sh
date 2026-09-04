@@ -25,4 +25,20 @@ if [ -s .delivery/HANDOFF.md ]; then
 fi
 PENDING=$(ls .delivery/inbox 2>/dev/null | wc -l | tr -d ' ')
 [ "$PENDING" != "0" ] && echo "INBOX: $PENDING pending item(s) in .delivery/inbox — process them first."
+
+# An unfinished checklist is a resume point, and saying so here is what stops a fresh session
+# starting something new while the last thing is still half-proven.
+if ls .delivery/checklist/*.json >/dev/null 2>&1; then
+  python3 - <<'PY' 2>/dev/null
+import glob, json, os
+for f in sorted(glob.glob(".delivery/checklist/*.json"), key=os.path.getmtime, reverse=True):
+    try: d = json.load(open(f))
+    except Exception: continue
+    items = d.get("items") or []
+    left = [i for i in items if not i.get("done")]
+    if not items or not left: continue
+    print(f"OPEN CHECKLIST: {d.get('slice')} — {len(items)-len(left)}/{len(items)} done; next: {left[0].get('text','')}"
+          + ("" if d.get("approved_at") or not d.get("gated") else "  [GATED, NOT APPROVED]"))
+PY
+fi
 exit 0

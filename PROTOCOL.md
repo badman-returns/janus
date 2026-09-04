@@ -160,7 +160,39 @@ skips a `stopped`/`paused` machine; `janus.sh` shows the state instead of guessi
 machine again rewrites the whole entry (`orchestrator.sh`), which clears both fields.
 
 ## HTTP (mission control only)
-`GET /api/state` (everything above as JSON) · `POST /api/inbox {kind:"reply"|"note", re, text}` ·
-`POST /api/service {window, action:"start"|"stop"|"restart"}` · `POST /api/session` ·
-`GET /api/logs?w=` · `GET /api/activity?sid=` · `GET /api/fleet` · `GET /events` (SSE nudge).
-Nothing here is required by the agent layer.
+Nothing here is required by the agent layer — the cockpit is one reader of the files above and
+can be replaced without touching anything else. But the page is the only consumer of these
+routes, so a change here that is not written down is a change nobody can find.
+
+| route | shape |
+|---|---|
+| `GET /api/state` | everything above, as one JSON object. The page fetches it once and refetches on every `/events` nudge, so **new data goes here** rather than into a new route |
+| `GET /api/slice?name=` | one slice's whole story: `{slice, runs[], spec, decisions[], branch:{name,commits[]}, proof, gates[], checklist}`. `400` on a name outside `[\w.-]+` |
+| `GET /api/logs?w=` | `tmux capture-pane` for one window, as text |
+| `GET /api/activity?sid=` | that session's hook events, newest first |
+| `GET /api/fleet` | the registry plus, per machine, `alive` and `waiting` |
+| `GET /events` | SSE. Any change under `.delivery/`, `.planning/` or the proof dir, plus a 5 s tick |
+| `POST /api/inbox` | `{kind:"reply"\|"note", re, text}` — writes `reply-*`/`note-*`, and for a reply to a `gate-*` also appends the thread and deletes the gate |
+| `POST /api/replies/dismiss` | `{name}` — deletes one `.delivery/replies/<name>` |
+| `POST /api/service` | `{window, action:"start"\|"stop"\|"restart"}` |
+| `POST /api/session` | a new Claude inside the machine (`dm-session.sh`) |
+| `POST /api/machine` | `{action:"stop"\|"pause"}` — runs `dm-stop.sh` (with `--pause`) from the project root. Anything else is `400` |
+
+### `/api/state`, field by field
+The names the cockpit's five bands read. `project`, `session`, `now`, `ttyd_port`, `account`,
+`usage`, `git`, `tmux`, `specs`, `notes`, `proof`, `runs`, `inbox`, `replies`, `activity`,
+`agents`, `threads`, `decisions`, `handoff`, `fleet` — plus:
+
+| field | is |
+|---|---|
+| `checklist` | an array of **every** `.delivery/checklist/<slice>.json`, newest file first, each verbatim. Every slice's, not one: the in-flight band joins them to the ledger by `slice`, and the checklist panel picks the slice named by the ledger's last line — the same slice `gate-check.sh` calls in flight |
+| `knowledge` | `{writes, paths[], diffstat}`. `paths[]` is `knowledge.log` grouped by path, newest write first: `{path, count, last, kinds[], outside}`. `outside` means the path resolves above the project root — a memory write, with no commit and no diff anywhere, which is the case the log exists for. `diffstat` is `git diff --stat` over the repo-local paths only (up to 40), because those are the only ones git can speak about |
+| `handoff_mtime` | ISO mtime of `.delivery/HANDOFF.md`, or `null` when there is none. The age, not the body — `handoff` still carries the text. `dm-stop.sh` writes the handoff first, so a fresh age is also how the page shows a stop or pause completed |
+
+### `POST /api/machine` and the response that must outlive the machine
+`stop` kills the tmux session mission control itself runs in. So the response is written and
+flushed **before** the script starts (`res.end(body, cb)`), and `dm-stop.sh` is then started
+`detached` — its own process group, so the signal tmux sends to this pane never reaches it.
+A synchronous `execSync` here dies mid-response and the operator sees a network error instead
+of a confirmation. After a `stop` the page goes offline, which is the success path; after a
+`pause` the server survives, because `mission` is not one of `config.json` `services`.

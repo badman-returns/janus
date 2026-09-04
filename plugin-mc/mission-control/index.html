@@ -23,6 +23,14 @@
     <button class="hbtn" id="fleetBtn" data-tip="Every machine on this host"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg><span id="fleetName">Fleet</span></button>
     <div class="fleetpop" id="fleetPop"></div>
   </div>
+  <div class="fleetmenu">
+    <button class="hbtn" id="machineBtn" data-tip="This machine — handoff age, pause, stop"><svg class="ico" viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg><span id="handoffAge">machine</span></button>
+    <div class="fleetpop" id="machinePop">
+      <div class="mp-h" id="handoffWhen">handoff —</div>
+      <button class="mp-a" id="pauseBtn"><svg class="ico" viewBox="0 0 24 24"><path d="M9 5v14M15 5v14"/></svg><span><b>Pause</b>handoff, services down, session kept</span></button>
+      <button class="mp-a bad" id="stopBtn"><svg class="ico" viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M18.4 6.6a9 9 0 1 1-12.8 0"/></svg><span><b>Stop</b>handoff, services down, session killed</span></button>
+    </div>
+  </div>
   <button class="hbtn icon" id="themeBtn" data-tip="Theme: auto" aria-label="Switch theme"></button>
   <button class="hbtn" id="streamBtn" data-tip="Event stream, gates and replies (⌘K for commands)"><svg class="ico" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg><span>Stream</span><span class="nbadge" id="unread"></span></button>
 </header>

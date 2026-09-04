@@ -1,10 +1,11 @@
 // "Waiting on you": ask cards (JSON, from the ask.sh hook), gate cards (plain text),
 // the machine's replies, and the operator's own writing still awaiting pickup.
-import { esc } from "../util.js";
+import { esc, rel } from "../util.js";
 import { ICON } from "../icons.js";
 import { asks, outbound } from "../state.js";
+import { inFlight } from "./inflight.js";
 
-export default s => ({ name:"Waiting on you", icon:ICON.gate, count: asks(s).length,
+export default s => ({ name:"Waiting on you", icon:ICON.gate, size:"l", count: asks(s).length,
   alert: asks(s).length>0 || (s.replies||[]).length>0,
   body(){ let h = "";
     // ask-* cards carry a JSON body (question + options) written by the ask.sh hook; gates are plain text
@@ -24,7 +25,16 @@ export default s => ({ name:"Waiting on you", icon:ICON.gate, count: asks(s).len
       <button class="btn" data-act="reject" data-re="${esc(i.name)}">Reject</button>
       <input class="note-in" placeholder="note…" data-note-for="${esc(i.name)}"></div>
       ${thread(i) ? `<details class="thread"><summary>round ${thread(i).rounds+1} · previous rounds ↓</summary><pre>${esc(thread(i).body)}</pre></details>` : ""}</div>`).join("")
-      : (parsed.length ? "" : `<div class="empty">Nothing needs you — gates and questions land here and ping your phone.</div>`);
+      : (parsed.length ? "" : (() => {
+        const fl = inFlight(s), last = (s.runs||[])[0];
+        const doing = fl.length
+          ? `<b>${fl.length} agent${fl.length>1?"s":""} in flight</b> — ${esc(fl.map(f=>f.role+" on "+f.slice).join(", "))}.`
+          : last ? `Nothing is running either. Last ledger row: <b>${esc((last.agent||"").replace(/^dm-/,""))}</b> ${esc(last.slice||"")} — ${esc(last.status||"")}, ${esc(rel(last.ts))} ago.`
+                 : `Nothing is running either, and the ledger is empty — start with <span class="cmd">/dm</span>.`;
+        return `<div class="empty"><b>Nothing is waiting on you.</b> ${doing}<br>
+          A gate (the architect's plan, the verifier's proof), a question or a permission prompt
+          lands here the moment it is raised, and pings your phone if
+          <span class="cmd">ntfy_topic</span> is set. Until then this band stays empty on purpose.</div>`; })());
     h += (s.replies||[]).map(r => `<div class="reply-item"><button class="x" data-dismiss="${esc(r.name)}" data-tip="Dismiss" aria-label="Dismiss">${ICON.close}</button>
       <b class="fn">machine replied</b><p>${esc(r.body)}</p></div>`).join("");
     const out = outbound(s);

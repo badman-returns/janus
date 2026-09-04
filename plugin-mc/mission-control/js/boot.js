@@ -1,7 +1,7 @@
 // Entry point. The page starts empty, fetches /api/state, renders, and re-renders on every
 // /events nudge — the same path every update after first paint already took. Nothing is
 // injected into this file; the server serves it as-is.
-import { $, esc } from "./util.js";
+import { $, esc, rel } from "./util.js";
 import { app, store, post, asks } from "./state.js";
 import { rebuild } from "./grid.js";
 import { drawStream, redrawDrawer, toggleDrawer } from "./drawer.js";
@@ -37,6 +37,16 @@ function render(s){
   // a switcher names what is currently selected; the machine you are on is the useful label,
   // not how many exist. Other machines that want you show as a dot, so the count that matters
   // is the one you can act on.
+  // MACHINE: how stale the resume point is. dm-stop.sh writes the handoff first, so a fresh
+  // age is also the proof that a stop or pause completed; the registry state names it outright.
+  const me = (s.fleet||[]).find(f => f.project === s.project) || {};
+  const age = s.handoff_mtime ? "handoff " + rel(s.handoff_mtime) : "no handoff yet";
+  $("handoffAge").textContent = me.state ? me.state + " · " + age : age;
+  $("machineBtn").dataset.tip = s.handoff_mtime
+    ? "Machine · handoff written " + rel(s.handoff_mtime) + " ago — pause or stop"
+    : "Machine · no handoff yet — pause or stop";
+  $("handoffWhen").textContent = s.handoff_mtime
+    ? "handoff " + new Date(s.handoff_mtime).toLocaleString() : "no handoff written yet";
   const elsewhere = (s.fleet||[]).filter(f => f.project !== s.project && f.waiting).length;
   $("fleetName").innerHTML = esc(s.project || "fleet") + (elsewhere ? ` <i class="fp-dot"></i>` : "");
   $("fleetBtn").dataset.tip = elsewhere
@@ -63,8 +73,31 @@ $("newSess").onclick = async () => { $("newSess").disabled = true;
   try { const r = await (await fetch("/api/session", {method:"POST"})).json();
     if (r.ok){ app.layout.open.push("term:"+r.window); app.layout.order.push("term:"+r.window); store.save(app.layout); }
   } finally { $("newSess").disabled = false; refresh(); } };
-$("fleetBtn").onclick = e => { e.stopPropagation(); $("fleetPop").classList.toggle("open"); };
-addEventListener("click", e => { if (!e.target.closest(".fleetmenu")) $("fleetPop").classList.remove("open"); });
+const popover = (btn, pop) => $(btn).onclick = e => { e.stopPropagation();
+  document.querySelectorAll(".fleetpop.open").forEach(p => { if (p.id !== pop) p.classList.remove("open"); });
+  $(pop).classList.toggle("open"); };
+popover("fleetBtn", "fleetPop"); popover("machineBtn", "machinePop");
+addEventListener("click", e => document.querySelectorAll(".fleetpop.open")
+  .forEach(p => { if (!p.parentElement.contains(e.target)) p.classList.remove("open"); }));
+
+// Stop and pause run dm-stop.sh on the server. Stop kills the tmux session this page's
+// server lives in, so the confirmation arrives and then the page goes offline — that is the
+// success path, not a failure, and the offline panel says how to bring it back.
+async function machine(action){
+  const ok = confirm(action === "stop"
+    ? "Stop this machine?\n\nThe handoff is written, services are stopped and the tmux session is killed. Files, ledger and branches are untouched — dm.sh brings it back."
+    : "Pause this machine?\n\nThe handoff is written and services are stopped. The session and the ledger stay up.");
+  if (!ok) return;
+  $("machinePop").classList.remove("open");
+  $("handoffAge").textContent = action === "stop" ? "stopping…" : "pausing…";
+  try {
+    const r = await (await fetch("/api/machine", { method:"POST", headers:{"content-type":"application/json"},
+      body: JSON.stringify({ action }) })).json();
+    $("handoffAge").textContent = r.ok ? (action === "stop" ? "stopped" : "paused") : "failed: " + (r.error||"");
+  } catch { $("handoffAge").textContent = "no reply from the server"; }
+}
+$("pauseBtn").onclick = () => machine("pause");
+$("stopBtn").onclick  = () => machine("stop");
 
 /* ---------------- main loop ---------------- */
 refresh();

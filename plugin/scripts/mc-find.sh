@@ -14,6 +14,11 @@
 set -uo pipefail
 ROOT=${1:?plugin root}
 
+# A project can decline the cockpit entirely: `"cockpit": false`. Uninstalling the plugin is not
+# enough on its own, because discovery reaches into other Claude config dirs and would find someone
+# else's copy — so the machine would start a dashboard the operator had deliberately removed.
+[ "$(python3 -c "import json;print(json.load(open('.delivery/config.json')).get('cockpit', True))" 2>/dev/null)" = False ] && exit 0
+
 # Neither the marketplace nor this plugin's own name is hardcoded: a cache path is
 # <cache>/<marketplace>/<plugin>/<version>, so the sibling is reachable by shape alone.
 # Naming either one here would make a rename silently stop finding the cockpit.

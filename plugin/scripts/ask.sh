@@ -7,7 +7,12 @@ set -uo pipefail
 [ -d .delivery ] || exit 0
 MODE="$1"; IN=$(cat)
 INBOX=".delivery/inbox"; mkdir -p "$INBOX"
-TIMEOUT=${DM_ASK_TIMEOUT:-580}; POLL=${DM_ASK_POLL:-2}
+# How long to hold the terminal waiting for a dashboard answer. 580s suits an operator who is
+# away from the machine; at the keyboard it reads as a hang, because the TUI prompt cannot appear
+# until this returns. So the default is short and the long wait is opt-in per project
+# (config `ask_timeout`), which is the only place that knows whether anyone is sitting there.
+CFG_TIMEOUT=$(python3 -c "import json;print(json.load(open('.delivery/config.json')).get('ask_timeout') or '')" 2>/dev/null)
+TIMEOUT=${DM_ASK_TIMEOUT:-${CFG_TIMEOUT:-45}}; POLL=${DM_ASK_POLL:-2}
 PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # no cockpit listening → nobody can answer a card; fall straight through to the terminal prompt

@@ -276,6 +276,58 @@ body.offline .offpill{display:inline-block}
 .cmdrow .grp{font:500 10.5px var(--mono);color:var(--mut2);margin-left:auto}
 .cmdhint{display:flex;gap:14px;padding:8px 14px;border-top:1px solid var(--line);font:500 10.5px var(--mono);color:var(--mut2)}
 
+/* Bands 1, 2 and 5 are short lists most of the time. At a fixed 320px an empty WAITING ON
+   YOU is a 320px void at the top of the page — the opposite of a signal — so these three grow
+   with their content and cap instead. Not in focus mode, where a pane must fill. */
+body:not(.focusmode) .tile.l[data-k="gates"],
+body:not(.focusmode) .tile.l[data-k="inflight"],
+body:not(.focusmode) .tile.l[data-k="knowledge"]{height:auto;min-height:92px;max-height:440px}
+
+/* ---------- band 2: now — in flight ---------- */
+.empty b{color:var(--ink);font-weight:600}
+.pill.out{color:var(--warn);border-color:var(--warn)}
+.fl{display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;min-width:0}
+.fl:first-child{border-top:none}
+.fl-s{font-weight:500;flex:none}
+.fl-s a[data-slice]{color:var(--ink);cursor:pointer;border-bottom:1px solid var(--line2)}
+.fl-s a[data-slice]:hover{border-color:var(--acc)}
+.fl-i{flex:1;min-width:60px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fl-t{flex:none;max-width:34%;font:500 11.5px var(--mono);color:var(--mut);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fl-t i{font-style:normal;color:var(--mut2)}
+.fl-t.cold{color:var(--bad)}
+
+/* ---------- band 5: knowledge ---------- */
+.kh{font:500 11px var(--mono);color:var(--mut2);padding:2px 0 6px}
+.kh .out{color:var(--warn)}
+.kw{display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--line);min-width:0}
+.kw:first-of-type{border-top:none}
+.kp{flex:1;min-width:0;display:flex;overflow:hidden;font:12px var(--mono);color:var(--ink);white-space:nowrap}
+.kp i{font-style:normal;color:var(--mut2);min-width:0;overflow:hidden;text-overflow:ellipsis}
+.kp b{flex:none;font-weight:500}
+
+/* ---------- checklist ---------- */
+.cl-h{padding-bottom:4px}
+.cl-int{margin:0;font-size:13px;color:var(--ink)}
+.cl-i{display:flex;gap:10px;padding:8px 0;border-top:1px solid var(--line);font-size:12.5px;align-items:flex-start}
+.cl-b{flex:none;width:20px;height:20px;border-radius:var(--r);border:1px solid var(--line2);display:grid;place-items:center;
+  font:500 10.5px var(--mono);color:var(--mut2)}
+.cl-i.on .cl-b{background:var(--ok-dim);border-color:transparent;color:var(--ok)}
+.cl-t{flex:1;min-width:0;word-break:break-word}
+.cl-i.on .cl-t{color:var(--mut)}
+.cl-t em{display:block;font:500 11px var(--mono);font-style:normal;color:var(--mut2);margin-top:2px}
+
+/* ---------- top-bar MACHINE popover (shares .fleetpop) ---------- */
+#machinePop{min-width:290px}
+.mp-h{font:500 11px var(--mono);color:var(--mut2);padding:6px 10px 8px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.mp-a{display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:9px 10px;border-radius:var(--r);color:var(--mut);
+  transition:background var(--t),color var(--t)}
+.mp-a:hover{background:var(--raise);color:var(--ink)}
+.mp-a span{display:flex;flex-direction:column;font:500 11px var(--mono);color:var(--mut2);line-height:1.5}
+.mp-a span b{font:500 12.5px var(--sans);color:inherit}
+.mp-a:hover span b{color:var(--ink)}
+.mp-a.bad:hover{background:var(--bad-dim);color:var(--bad)}
+.mp-a.bad:hover span b{color:var(--bad)}
+
 /* ---------- small screens: sidebar becomes a horizontal rail above the main area (last, so it wins) ---------- */
 @media (max-width:720px){
   body{grid-template-columns:minmax(0,1fr);grid-template-rows:auto auto minmax(0,1fr) auto}
