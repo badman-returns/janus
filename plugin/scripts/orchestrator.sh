@@ -48,11 +48,15 @@ for name, cmd in json.load(open('$CONF')).get('services', {}).items():
 done
 
 # ---- the cockpit (mission-control plugin) is optional: beside this repo, or in a plugin cache, or absent
-MC=""
-for c in "${DM_MISSION_CONTROL:-}" "$PLUGIN_ROOT/../plugin-mc/mission-control" \
-         $(ls -d "$HOME"/.claude*/plugins/cache/*/mission-control/*/mission-control 2>/dev/null | sort -V | tail -1); do
-  [ -n "$c" ] && [ -f "$c/server.js" ] && { MC="$(cd "$c" && pwd)"; break; }
-done
+#
+# Order matters, and the first candidate is the fix for a real failure. The cockpit and the agent
+# layer are two plugins that share one file protocol, so a cockpit from a different release renders
+# an older protocol and looks exactly like the feature never shipped. The old last resort — glob
+# every config dir, `sort -V | tail -1` — sorts whole PATHS, so `.claude-tsg` beat `.claude-apm`
+# alphabetically whatever the versions were: a freshly installed 0.9.0 lost to another account's
+# stale 0.8.0, silently. So look first for the sibling of THIS plugin: same marketplace cache, same
+# version. Anything else is a guess.
+MC=$(bash "$PLUGIN_ROOT/scripts/mc-find.sh" "$PLUGIN_ROOT")
 
 # ---- mission control window
 if [ -n "$MC" ] && ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "mission"; then
