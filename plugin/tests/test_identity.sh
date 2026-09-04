@@ -44,7 +44,10 @@ done < <(grep -rhoE '[a-z0-9-]+@[a-z0-9-]+-marketplace' \
 
 # 4. cockpit discovery must not pin a marketplace name — renaming the marketplace would
 #    silently stop finding an installed cockpit, with no error anywhere.
-grep -q 'plugins/cache/\*/mission-control' "$ROOT/plugin/scripts/orchestrator.sh" \
-  || fail "orchestrator cockpit discovery is pinned to a marketplace name"
+# (discovery moved out of orchestrator.sh into mc-find.sh; the assertion is unchanged)
+grep -q 'plugins/cache/\*/mission-control' "$ROOT/plugin/scripts/mc-find.sh" \
+  || fail "cockpit discovery is pinned to a marketplace name"
+grep -v '^[[:space:]]*#' "$ROOT/plugin/scripts/mc-find.sh" | grep -qE '\bjanus\b' \
+  && fail "cockpit discovery names this plugin — a rename would silently stop finding the cockpit"
 
 echo "PASS test_identity"
