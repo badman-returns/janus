@@ -16,6 +16,8 @@ description: Initialize Janus in the current project — one-time scaffold. Use 
   "ntfy_topic": null,
   "proof_dir": "proof",
   "foundry": true,
+  "cockpit": true,
+  "ask_timeout": 45,
   "gate": { "max_files": 4, "guarded": [] },
   "knowledge_paths": [".claude/knowledge/**", "docs/decisions/**"]
 }
@@ -24,6 +26,8 @@ description: Initialize Janus in the current project — one-time scaffold. Use 
 `proof_dir`: where `proof/<slice>/` lives, when it should not sit at the machine's root — e.g. `"../docs/proof"` for a machine running in a subdirectory.
 `gate.guarded`: globs whose blast radius outweighs their size, so any edit to one stops for approval regardless of how small it is. Ask the operator for these — auth, permission checks, the API URL map, CI workflows and whatever their lint standard is enforced by. An empty list means only the file count triggers.
 `knowledge_paths`: globs whose edits get logged to `.delivery/knowledge.log`, so "did the knowledge actually update?" has an answer. Absolute paths are allowed, and are the way to catch writes to a memory directory outside any repo.
+`cockpit`: set false to decline the dashboard. Uninstalling the plugin is not enough by itself — discovery reaches into other Claude config dirs and would find another account's copy.
+`ask_timeout`: seconds a question waits for a dashboard answer before the terminal prompt takes over. The default 45 suits an operator at the keyboard, because nothing can prompt them until the wait ends; raise it (300+) only for a project operated from a phone.
 
 3. **Scaffold** (create only what's missing): `.delivery/inbox/` (empty, with a `.gitkeep`), `.delivery/decisions.md` (header line), `.delivery/runs.jsonl` (empty), `.planning/specs/`, `.planning/notes/`, `proof/`.
 

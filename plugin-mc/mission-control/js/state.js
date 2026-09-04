@@ -16,7 +16,11 @@ export const store = {
   save(v){ try{ localStorage.setItem(this.k, JSON.stringify(v)) }catch{} },
 };
 
-export const DEFAULT_OPEN = ["gates","agents","proof","runs"];
+// The five bands, urgency descending: the page is scanned to answer "does anything need
+// me?", so gates come first and reference last. ensureLayout drops the terminal into the
+// third slot, which is band 3.
+export const DEFAULT_OPEN = ["gates","inflight","runs","proof","knowledge"];
+const TERM_BAND = 2;
 
 // inbox items waiting on the operator vs the operator's own writing — the same split the
 // server makes in waitingIn(); the page needs both halves.
@@ -34,7 +38,7 @@ export async function post(url, payload){
 export function ensureLayout(defs){
   const l = app.layout || (app.layout = store.load() || { open:[...DEFAULT_OPEN], sizes:{}, order:[] });
   const terms = Object.keys(defs).filter(k=>k.startsWith("term:"));
-  if (!l.seenTerm && terms.length){ l.open.splice(1,0,terms[0]); l.seenTerm = true; store.save(l); }
+  if (!l.seenTerm && terms.length){ l.open.splice(TERM_BAND,0,terms[0]); l.seenTerm = true; store.save(l); }
   l.open = l.open.filter(k => defs[k]);
   const order = l.order.filter(k => l.open.includes(k));
   l.open.forEach(k => { if(!order.includes(k)) order.push(k); });

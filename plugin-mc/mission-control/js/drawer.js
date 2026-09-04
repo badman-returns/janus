@@ -2,6 +2,7 @@
 // slice's whole story (spec → ledger → commits → proof → decisions → gates).
 import { $, esc, rel } from "./util.js";
 import { app, store, asks } from "./state.js";
+import { renderChecklist } from "./panels/checklist.js";
 
 function streamItems(s){
   const items = [];
@@ -70,6 +71,7 @@ async function renderSlice(name){
     <div class="run" style="border-top:0"><span class="tag ${verified?"done":esc(last?last.status:"")}">${esc(status)}</span>
       <span class="what">${d.branch.name ? `on <span class="path">${esc(d.branch.name)}</span>` : "no branch"}</span></div>
     ${sec("Spec", d.spec ? `<div class="path">${esc(d.spec.path)}</div>` + fold("spec", "read", d.spec.body) : "")}
+    ${sec("Checklist", d.checklist ? renderChecklist(d.checklist) : "")}
     ${sec("Ledger", runs.map(row).join(""))}
     ${fixes.length ? sec("Review &amp; fixes", fixes.map(row).join("")) : ""}
     ${sec("Commits", (d.branch.commits||[]).map(c => `<div class="run"><span class="pill">${esc(c.sha)}</span><span class="what">${esc(c.subject)}</span><span class="when">${rel(c.when)}</span></div>`).join(""))}

@@ -19,7 +19,7 @@ function drawSkeleton(defs){
   document.body.classList.toggle("focusmode", layout.focus.length > 0);
   document.body.classList.toggle("split", layout.focus.length === 2);
   $("grid").innerHTML = keys.map(k => {
-    const t = defs[k]; const size = layout.sizes[k] || (k.startsWith("term:")?"xl":"m");
+    const t = defs[k]; const size = layout.sizes[k] || t.size || (k.startsWith("term:")?"xl":"m");
     return `<div class="tile ${size} ${t.alert?"alert":""} ${layout.focus.includes(k)?"focus":""}" data-k="${esc(k)}" draggable="true">
       <div class="t-h">${t.icon}<span class="name">${esc(t.name)}</span>
         ${t.count!=null?`<span class="cnt">${t.count}</span>`:""}

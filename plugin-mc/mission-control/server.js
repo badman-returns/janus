@@ -5,7 +5,7 @@
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
+const { execSync, spawn } = require("child_process");
 
 const arg = (name, dflt) => {
   const i = process.argv.indexOf("--" + name);
@@ -90,6 +90,35 @@ function state() {
       return { ...a, alive: age < 120, idle: age >= 120 && age < 1800, ageSec: Math.round(age) };
     } catch { return null; }
   }).filter(Boolean).filter(a => a.ageSec < 1800).sort((x, y) => x.ageSec - y.ageSec);
+  // what each gated slice promised (.delivery/checklist/<slice>.json), newest file first.
+  // Every slice, not just one: the in-flight band joins these against the ledger by name.
+  const clDir = path.join(PROJ_DIR, ".delivery", "checklist");
+  const checklist = listDir(clDir).filter(f => f.name.endsWith(".json")).map(f => {
+    try { return JSON.parse(fs.readFileSync(path.join(clDir, f.name), "utf8")); } catch { return null; }
+  }).filter(Boolean);
+  // knowledge.log grouped by path, newest first. `outside` is the whole reason the log exists:
+  // a write above the project root leaves no git trace at all, so it can only be seen here.
+  const kraw = readIf(path.join(PROJ_DIR, ".delivery", "knowledge.log"), 40000) || "";
+  const kby = new Map();
+  let kwrites = 0;
+  for (const line of kraw.split("\n")) {
+    const [ts, p, kind] = line.split("\t");
+    if (!p || !/^\d{4}-/.test(ts || "")) continue;          // a capped read can cut the first line in half
+    kwrites++;
+    const outside = !path.resolve(PROJ_DIR, p).startsWith(PROJ_DIR + path.sep);
+    const g = kby.get(p) || { path: p, count: 0, last: null, kinds: [], outside };
+    g.count++; if (!g.last || ts > g.last) g.last = ts;
+    if (kind && !g.kinds.includes(kind)) g.kinds.push(kind);
+    kby.set(p, g);
+  }
+  const kpaths = [...kby.values()].sort((a, b) => String(b.last).localeCompare(String(a.last)));
+  const kLocal = kpaths.filter(g => !g.outside).slice(0, 40)
+    .map(g => "'" + path.relative(PROJ_DIR, path.resolve(PROJ_DIR, g.path)).replace(/'/g, "'\\''") + "'");
+  const knowledge = { paths: kpaths, writes: kwrites,
+    diffstat: kLocal.length ? sh(`git diff --stat -- ${kLocal.join(" ")} | tail -20`) : "" };
+  // age of the handoff, not its body — the top bar asks "how stale is the resume point"
+  let handoff_mtime = null;
+  try { handoff_mtime = fs.statSync(path.join(PROJ_DIR, ".delivery", "HANDOFF.md")).mtime.toISOString(); } catch {}
   let registry = {};
   try { registry = JSON.parse(fs.readFileSync(REGISTRY, "utf8")); } catch {}
   let projName = path.basename(PROJ_DIR);
@@ -128,9 +157,9 @@ function state() {
     tmux,
     specs: listDir(path.join(PROJ_DIR, ".planning", "specs")),
     notes: listDir(path.join(PROJ_DIR, ".planning", "notes")),
-    proof: proofDirs, runs, inbox, replies, activity, agents, threads,
+    proof: proofDirs, runs, inbox, replies, activity, agents, threads, checklist, knowledge,
     decisions: readIf(path.join(PROJ_DIR, ".delivery", "decisions.md"), 4000),
-    handoff: readIf(path.join(PROJ_DIR, ".delivery", "HANDOFF.md"), 6000),
+    handoff: readIf(path.join(PROJ_DIR, ".delivery", "HANDOFF.md"), 6000), handoff_mtime,
     fleet: Object.entries(registry).map(([k, v]) => ({ project: k, ...v, waiting: waitingIn(v.dir) })),
   };
 }
@@ -158,7 +187,9 @@ function sliceStory(name) {
   const mentions = (dir, kind) => listDir(dir).filter(f => !f.dir).map(f => ({ name: f.name, kind, body: (readIf(path.join(dir, f.name)) || "").slice(0, 2000) }))
     .filter(f => f.name.includes(name) || f.body.includes(name));
   const gates = [...mentions(path.join(PROJ_DIR, ".delivery", "inbox"), "inbox"), ...mentions(path.join(PROJ_DIR, ".delivery", "threads"), "thread")];
-  return { slice: name, runs, spec, decisions, branch: { name: bname, commits }, proof, gates };
+  let checklist = null;
+  try { checklist = JSON.parse(readIf(path.join(PROJ_DIR, ".delivery", "checklist", name + ".json"))); } catch {}
+  return { slice: name, runs, spec, decisions, branch: { name: bname, commits }, proof, gates, checklist };
 }
 
 // --- SSE: file changes + a slow heartbeat both nudge the client to refetch
@@ -244,6 +275,34 @@ http.createServer((req, res) => {
     const w = sh(`bash '${path.join(SCRIPTS, "dm-session.sh")}'`);
     res.writeHead(w ? 200 : 500, { "content-type": "application/json" });
     return res.end(JSON.stringify(w ? { ok: true, window: w } : { ok: false, error: "could not start session" }));
+  }
+  if (req.method === "POST" && url === "/api/machine") {
+    let body = "";
+    req.on("data", c => { body += c; if (body.length > 2000) req.destroy(); });
+    req.on("end", () => {
+      const { action } = (() => { try { return JSON.parse(body); } catch { return {}; } })();
+      if (action !== "stop" && action !== "pause") {
+        res.writeHead(400, { "content-type": "application/json" });
+        return res.end(JSON.stringify({ ok: false, error: "action must be stop or pause" }));
+      }
+      // dm-stop.sh kills the tmux session this server runs inside, so a plain execSync here
+      // dies mid-response and the operator sees a network error instead of a confirmation.
+      // Two things keep that from happening: the response is flushed FIRST (res.end's
+      // callback fires when the body has left this process), and the script is then started
+      // detached — spawn({detached:true}) setsid()s it into its own process group, so the
+      // signal tmux sends to this pane's group never reaches it. The extra second is slack
+      // for the socket, not for correctness.
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: true, action, note: "machine is going down; this page will go offline" }), () => {
+        const q = str => str.replace(/'/g, "'\\''");
+        const cmd = `sleep 1; exec bash '${q(path.join(SCRIPTS, "dm-stop.sh"))}'`
+                  + (action === "pause" ? " --pause" : "");
+        const child = spawn("/bin/bash", ["-c", cmd],
+          { cwd: PROJ_DIR, detached: true, stdio: "ignore" });
+        child.unref();
+      });
+    });
+    return;
   }
   if (req.method === "POST" && url === "/api/service") {
     let body = "";

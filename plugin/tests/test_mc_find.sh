@@ -49,4 +49,24 @@ BARE="$T/bare/plugin"; mkdir -p "$BARE/scripts"
 got=$(HOME="$T/nothing" bash "$BARE/../../.." 2>/dev/null; HOME="$T/nothing" bash "$F" "$BARE")
 [ -z "$got" ] || fail "expected no cockpit, got: $got"
 
+# `"cockpit": false` must win over every candidate. Uninstalling the plugin is not enough on its
+# own: discovery reaches into other Claude config dirs, so a project that removed the cockpit would
+# still get someone else's copy started for it.
+PROJ="$T/proj"; mkdir -p "$PROJ/.delivery"
+echo '{"project":"p","cockpit":false}' > "$PROJ/.delivery/config.json"
+got=$(cd "$PROJ" && HOME="$T" bash "$F" "$ROOT")
+[ -z "$got" ] || fail "cockpit:false ignored, would have started: $got"
+
+# ...and an explicit override must not sneak past it either
+got=$(cd "$PROJ" && HOME="$T" DM_MISSION_CONTROL="$APM/mission-control/0.9.0/mission-control" bash "$F" "$ROOT")
+[ -z "$got" ] || fail "cockpit:false overridden by DM_MISSION_CONTROL: $got"
+
+# true, and absent, both mean yes
+echo '{"project":"p","cockpit":true}' > "$PROJ/.delivery/config.json"
+got=$(cd "$PROJ" && HOME="$T" bash "$F" "$ROOT")
+[ -n "$got" ] || fail "cockpit:true found nothing"
+echo '{"project":"p"}' > "$PROJ/.delivery/config.json"
+got=$(cd "$PROJ" && HOME="$T" bash "$F" "$ROOT")
+[ -n "$got" ] || fail "absent cockpit key should default to on, found nothing"
+
 echo "PASS test_mc_find"
