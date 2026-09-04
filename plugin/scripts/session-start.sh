@@ -3,6 +3,7 @@
 # sessions. Silent no-op outside a Janus project.
 set -uo pipefail
 [ -d .delivery ] || exit 0
+rm -f .delivery/.touched   # gate-check.sh counts files touched THIS session, not ever
 PROJ=$(python3 -c "import json;print(json.load(open('.delivery/config.json'))['project'])" 2>/dev/null || basename "$PWD")
 echo "JANUS PROJECT ($PROJ). Operate per the /dm skill: approval gates, agents for real work, services in tmux only, proof before done."
 if tmux has-session -t "dm-$PROJ" 2>/dev/null; then

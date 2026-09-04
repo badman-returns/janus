@@ -3,61 +3,13 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Fleet · Mission Control</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
-<style>
-  /* tokens come from theme.json — server.js renders them here on every request */
-  /*__TOKENS__*/
-  *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font:var(--fs)/1.55 var(--sans);min-height:100vh;
-       -webkit-font-smoothing:antialiased;font-feature-settings:"tnum"}
-  .wrap{max-width:900px;margin:0 auto;padding:44px 22px}
-  .head{display:flex;align-items:center;gap:12px;margin-bottom:4px}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
-  h1{font-size:20px;font-weight:600;letter-spacing:-.01em;margin:0}
-  .sub{color:var(--mut);font:500 12px var(--mono);margin:0 0 26px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
-  a.card{border:1px solid var(--line);border-radius:4px;background:var(--surface);padding:16px 18px;text-decoration:none;color:inherit;
-    display:block;transition:border-color .16s,transform .16s}
-  a.card:hover{border-color:var(--acc);transform:translateY(-1px)}
-  a.card:focus-visible{outline:1.5px solid var(--acc);outline-offset:2px}
-  a.card.needs{border-color:var(--acc);box-shadow:0 0 0 3px var(--acc-dim)}
-  .cn{display:flex;align-items:center;gap:9px;margin-bottom:12px}
-  .sd{width:7px;height:7px;border-radius:50%;flex:none;background:var(--mut2)}
-  .sd.up{background:var(--ok)}
-  .cn b{font-size:14px;font-weight:500}
-  .pill{margin-left:auto;font:500 11.5px var(--mono);line-height:1;padding:3px 8px;border-radius:99px;border:1px solid var(--line2);color:var(--mut)}
-  .pill.acc{background:var(--acc);color:var(--acc-ink);border-color:transparent}
-  .meta{font:500 11.5px var(--mono);color:var(--mut);display:flex;flex-direction:column;gap:4px}
-  .meta .r{display:flex;justify-content:space-between}
-  .meta .r span:last-child{color:var(--ink)}
-  .empty{color:var(--mut);padding:40px 0;font-size:13px}
-  .empty b{font-weight:500;color:var(--ink)}
-  .foot{margin-top:24px;font:500 11.5px var(--mono);color:var(--mut2)}
-</style></head><body>
+<link rel="stylesheet" href="/fleet.css">
+</head><body>
 <div class="wrap">
   <div class="head"><span class="dot"></span><h1>Fleet</h1></div>
   <p class="sub">every Janus machine on this host · <span id="ts"></span></p>
   <div class="grid" id="grid"></div>
   <p class="foot">Refreshes every 5s. A machine appears the moment its orchestrator starts.</p>
 </div>
-<script>
-"use strict";
-const esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
-try{ if(localStorage.getItem("dm2-theme")==="light") document.documentElement.setAttribute("data-theme","light"); }catch{}
-async function load(){
-  let rows=[];
-  try{ rows=await (await fetch("/api/fleet")).json(); }catch{}
-  document.getElementById("ts").textContent=new Date().toLocaleTimeString();
-  const g=document.getElementById("grid");
-  if(!rows.length){ g.innerHTML=`<div class="empty" style="grid-column:1/-1">No machines yet. Run <b>orchestrator.sh</b> in a project to add one.</div>`; return; }
-  g.innerHTML=rows.map(r=>`<a class="card ${r.waiting?"needs":""}" href="http://localhost:${r.port}">
-    <div class="cn"><span class="sd ${r.alive?"up":""}"></span><b>${esc(r.project)}</b>
-      ${r.waiting?`<span class="pill acc">${r.waiting} waiting</span>`:`<span class="pill">${r.alive?"running":"stopped"}</span>`}</div>
-    <div class="meta">
-      <div class="r"><span>dashboard</span><span>:${r.port}</span></div>
-      <div class="r"><span>terminal</span><span>${r.ttyd_port?":"+r.ttyd_port:"—"}</span></div>
-      <div class="r"><span>since</span><span>${esc(r.started||"—")}</span></div>
-    </div></a>`).join("");
-}
-load(); setInterval(load,5000);
-</script>
+<script type="module" src="/js/fleet.js"></script>
 </body></html>

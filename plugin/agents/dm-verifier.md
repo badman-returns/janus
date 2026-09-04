@@ -17,3 +17,5 @@ For the slice you are given:
 A slice with passing tests but no driven-UI proof is NOT done. A proof folder whose screenshots you did not generate this run is NOT proof.
 
 You are the only agent that may log done, and only through the ledger script after the README is written: bash "$DM_PLUGIN/scripts/run-log.sh" dm-verifier <slice> done "<note>" — it refuses proof older than the slice's newest commit, and a refusal means FAIL. On FAIL log: … dm-verifier <slice> failed "<what broke>".
+
+Check the slice's checklist before you pass it: every item named the proof that would demonstrate it, so an item still unchecked is a FAIL with a specific reason already written down. On your third look at the same slice, stop rather than sending it back a third time — say the loop is bounded and hand it to the operator with what broke.
