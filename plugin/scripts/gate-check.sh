@@ -17,7 +17,7 @@ set -uo pipefail
 [ -d .delivery ] || exit 0
 DM_HOOK_JSON=$(cat); export DM_HOOK_JSON   # the heredoc owns stdin
 OUT=$(python3 - 2>/dev/null <<'PY'
-import fnmatch, json, os, time
+import fnmatch, json, os, sys, time
 
 DEFAULT = {"max_files": 4, "guarded": ["run-log.sh", "proof-fresh.sh", "hooks.json"]}
 TOUCHED = ".delivery/.touched"
@@ -63,12 +63,22 @@ def main():
         with open(TOUCHED, "a") as f:
             f.write(p + "\n")
 
-    # read the config AFTER recording the touch, and without a fallback: an unreadable
+    # Read the config AFTER recording the touch, and without a fallback: an unreadable
     # config.json means we do not know this project's intent, so the outer handler fails
     # open — but the count is already on disk, so the gate works again once it is fixed.
-    gate = json.load(open(".delivery/config.json")).get("gate") or {}
+    cfg = json.load(open(".delivery/config.json"))
+
+    # OPT-IN: no "gate" key means off, and so does `"gate": false`. A mechanism that refuses an
+    # agent's edits must never switch itself on because someone upgraded the plugin — a project
+    # mid-flight would start being denied at its fifth file, against limits nobody there chose.
+    # dm-init writes the key, so new projects get it; existing ones adopt it deliberately.
+    if "gate" not in cfg or cfg["gate"] is False or cfg["gate"] is None:
+        sys.exit(0)
+    gate = cfg["gate"] if isinstance(cfg["gate"], dict) else {}
     max_files = int(gate.get("max_files", DEFAULT["max_files"]))
     guarded = gate.get("guarded", DEFAULT["guarded"])
+    if max_files <= 0 and not guarded:
+        sys.exit(0)
 
     base = os.path.basename(p)
     hit = next((g for g in guarded

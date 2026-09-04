@@ -57,7 +57,9 @@ one of them does not count:
 
 `gate-check.sh` enforces the first two mechanically on every write and
 **re-evaluates as scope grows** — a task that starts at one file and reaches
-five stops at five. When it denies you, declare, get approval
+five stops at five. It is **opt-in per project**: no `gate` key in
+`config.json` means the mechanical half is off and the remaining triggers are
+yours to honour on your own. Declaring is not optional either way. When it denies you, declare, get approval
 (`checklist.sh approve <slice>` records it), then continue. Do not work around
 it. The remaining triggers are yours to honour; the operator saying *go* to a
 declaration approves the work on the table and nothing beyond it.

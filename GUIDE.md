@@ -131,7 +131,8 @@ Answer a gate by hand: `printf 'RE: gate-x.txt\nAPPROVE\n' > .delivery/inbox/rep
 - `gate-check.sh` stops a write once the slice passes `gate.max_files` or touches a `gate.guarded`
   path without an approved checklist, and it re-checks on **every** write, so a task that grows
   mid-flight stops when it grows rather than when it started. It fails open: a broken gate must
-  never block all editing.
+  never block all editing. **Opt-in** — no `gate` key in `config.json` and it does nothing, so
+  upgrading the plugin never starts refusing edits in a project that did not ask for it.
 - The verifier's reject loop is bounded at two rounds; a third failure goes to the operator at
   Gate 2 instead of back to the builder.
 - Edits under `knowledge_paths` are logged to `knowledge.log`, including absolute paths outside

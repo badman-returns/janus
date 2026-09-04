@@ -24,6 +24,7 @@ description: Initialize Janus in the current project — one-time scaffold. Use 
 ```
 `claude_config_dir`: set only when this project uses a different Claude account (see dm-remote for ntfy_topic).
 `proof_dir`: where `proof/<slice>/` lives, when it should not sit at the machine's root — e.g. `"../docs/proof"` for a machine running in a subdirectory.
+`gate`: **opt-in.** Omit the key, or set it to `false`, and the scope gate is off — a hook that refuses edits must never arm itself because someone upgraded the plugin. `{}` arms the defaults. Write the key for a new project; for a project adopting Janus mid-flight, leave it out until they ask for it.
 `gate.guarded`: globs whose blast radius outweighs their size, so any edit to one stops for approval regardless of how small it is. Ask the operator for these — auth, permission checks, the API URL map, CI workflows and whatever their lint standard is enforced by. An empty list means only the file count triggers.
 `knowledge_paths`: globs whose edits get logged to `.delivery/knowledge.log`, so "did the knowledge actually update?" has an answer. Absolute paths are allowed, and are the way to catch writes to a memory directory outside any repo.
 `cockpit`: set false to decline the dashboard. Uninstalling the plugin is not enough by itself — discovery reaches into other Claude config dirs and would find another account's copy.
