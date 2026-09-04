@@ -175,6 +175,17 @@ setInterval(() => { for (const res of clients) res.write("data: tick\n\n"); }, 5
 
 const slug = s => (s || "note").toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 40) || "note";
 
+// --- static assets: the page's stylesheet, theme.json and ES modules. Two gates, both needed:
+// the url must name one of these three shapes, and the resolved path must still be inside
+// __dirname — so no traversal, and nothing else in this directory (server.js included) is served.
+const STATIC = { ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
+                 ".json": "application/json; charset=utf-8" };
+const staticAsset = (url) => {
+  if (!/^\/(?:[\w-]+\.css|theme\.json|js\/[\w-]+(?:\/[\w-]+)?\.js)$/.test(url) || url.includes("..")) return null;
+  const file = path.normalize(path.join(__dirname, url));
+  return file.startsWith(__dirname + path.sep) && STATIC[path.extname(file)] ? file : null;
+};
+
 http.createServer((req, res) => {
   const url = decodeURIComponent(req.url.split("?")[0]);
   if (req.method === "POST" && url === "/api/inbox") {
@@ -282,14 +293,9 @@ http.createServer((req, res) => {
     res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
     return res.end(out || "(no output — window may not exist)");
   }
-  if (url === "/") {
+  if (url === "/" || url === "/fleet") {
     res.writeHead(200, { "content-type": "text/html" });
-    res.end(fs.readFileSync(path.join(__dirname, "index.html"), "utf8")
-      .replace("/*__TOKENS__*/", renderTokens())
-      .replace("/*__XTERM_LIGHT__*/null", JSON.stringify(THEME.xterm_light || THEME.xterm)));
-  } else if (url === "/fleet") {
-    res.writeHead(200, { "content-type": "text/html" });
-    res.end(fs.readFileSync(path.join(__dirname, "fleet.html"), "utf8").replace("/*__TOKENS__*/", renderTokens()));
+    res.end(fs.readFileSync(path.join(__dirname, url === "/" ? "index.html" : "fleet.html")));
   } else if (url === "/api/fleet") {
     let reg = {};
     try { reg = JSON.parse(fs.readFileSync(REGISTRY, "utf8")); } catch {}
@@ -312,11 +318,22 @@ http.createServer((req, res) => {
   } else if (url.startsWith("/proof/")) {
     const file = path.normalize(path.join(PROOF, url.slice("/proof/".length)));
     if (!file.startsWith(PROOF + path.sep)) { res.writeHead(403); return res.end(); }
-    try {
-      const ext = path.extname(file).toLowerCase();
-      const mime = { ".png": "image/png", ".jpg": "image/jpeg", ".gif": "image/gif", ".md": "text/plain" }[ext] || "application/octet-stream";
-      res.writeHead(200, { "content-type": mime });
-      res.end(fs.readFileSync(file));
-    } catch { res.writeHead(404); res.end(); }
+    const ext = path.extname(file).toLowerCase();
+    const mime = { ".png": "image/png", ".jpg": "image/jpeg", ".gif": "image/gif", ".md": "text/plain" }[ext] || "application/octet-stream";
+    // read before the head goes out: after writeHead a missing file cannot 404, it throws
+    let bytes; try { bytes = fs.readFileSync(file); } catch { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { "content-type": mime });
+    res.end(bytes);
+  } else if (staticAsset(url)) {
+    // the page's own stylesheet and ES modules, from this directory only. Tokens are
+    // prepended to CSS here, so theme.json stays the single source and no page is ever
+    // served with a hole in it waiting to be filled.
+    let body;
+    const file = staticAsset(url), ext = path.extname(file);
+    // read first: a missing file must 404, and it cannot once the 200 head is out
+    try { body = ext === ".css" ? renderTokens() + "\n" + fs.readFileSync(file, "utf8") : fs.readFileSync(file); }
+    catch { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { "content-type": STATIC[ext] });
+    res.end(body);
   } else { res.writeHead(404); res.end("not found"); }
 }).listen(PORT, () => console.log(`mission control: http://localhost:${PORT}  (${PROJ_DIR})`));

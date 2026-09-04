@@ -82,7 +82,7 @@ plugin/
   skills/           dm (the constitution) · dm-init · dm-remote
   hooks/hooks.json  PreCompact → HANDOFF.md · SessionStart → inject handoff+status
   scripts/          orchestrator.sh · dm-run.sh · handoff.sh · session-start.sh · notify.sh
-  mission-control/  server.js + index.html (zero-dependency, reads the project's own files)
+  mission-control/  server.js · index.html + style.css + js/ ES modules (zero-dependency, no build step)
 ```
 
 Per-project state: `.delivery/` (config, inbox, decisions, runs, handoff),

@@ -36,7 +36,7 @@ import json, re, sys
 
 BASELINE = sys.argv[2] if len(sys.argv) > 2 else ""
 AGENT = re.compile(r"^(orchestrator|dm-[a-z0-9-]+)$")
-STATUS = {"working", "built", "reviewed", "fixed", "failed", "done"}
+STATUS = {"dispatched", "working", "built", "reviewed", "fixed", "failed", "done"}
 FIELDS = {"ts", "agent", "slice", "status", "note"}
 
 def out(n, msg, old):

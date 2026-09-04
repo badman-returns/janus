@@ -96,9 +96,13 @@ it gets no tile, and its gate answers reach it on its next Stop instead of insta
 - **End the session**: `Ctrl-C` twice in its tile/window, or `/exit`. The `claude` window closes; the
   services stay up.
 - **Stop a service**: the ▮ button on its tile (Ctrl-C into that window), ↻ restarts it.
-- **Stop the whole machine**: `tmux kill-session -t dm-<project>` — services, cockpit, watcher, all of
-  it. `orchestrator.sh` (or `mission`) brings it back identically. Files are untouched.
-- **Stop every machine**: `tmux kill-server`. `dm-boot.sh` restores them all.
+- **Stop the whole machine**: `bash <plugin>/scripts/dm-stop.sh` — writes the handoff, stops the
+  services, kills the session, and marks the registry stopped. `--pause` keeps the session and the
+  ledger and only takes the services down. `dm.sh` brings it back. Files are untouched.
+  A bare `tmux kill-session -t dm-<project>` also works but leaves **no handoff** and leaves the
+  registry claiming the machine is running, so the fleet page lies until the next `orchestrator.sh`.
+- **Stop every machine**: `tmux kill-server` — same caveat, no handoffs. `dm-boot.sh` restores the
+  ones not marked stopped.
 
 ## Reading the state without the cockpit
 
@@ -121,7 +125,17 @@ Answer a gate by hand: `printf 'RE: gate-x.txt\nAPPROVE\n' > .delivery/inbox/rep
 - `runs.jsonl` is written only by `run-log.sh`; `done` only by the verifier, only with fresh proof.
 - Gate 2 is written only by `dm-gate.sh`, which refuses stale or missing proof.
 - Branches are handed over un-merged. Worktrees per builder.
-- Handoffs are automatic (PreCompact → `HANDOFF.md`, SessionStart injects it). Rotate at seams.
+- Handoffs are automatic (PreCompact **and** Stop → `HANDOFF.md`, SessionStart injects it). Rotate at seams.
+- Every intent declares a checklist before the first edit (`checklist.sh`), and each item names what
+  will prove it — the script refuses one that does not.
+- `gate-check.sh` stops a write once the slice passes `gate.max_files` or touches a `gate.guarded`
+  path without an approved checklist, and it re-checks on **every** write, so a task that grows
+  mid-flight stops when it grows rather than when it started. It fails open: a broken gate must
+  never block all editing.
+- The verifier's reject loop is bounded at two rounds; a third failure goes to the operator at
+  Gate 2 instead of back to the builder.
+- Edits under `knowledge_paths` are logged to `knowledge.log`, including absolute paths outside
+  the repo — which is the only trace a write to a memory directory leaves at all.
 
 ## What the cockpit shows beyond terminals and cards
 

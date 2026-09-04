@@ -12,7 +12,9 @@ PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REG="${DM_REGISTRY:-$HOME/.delivery-machine/registry.json}"
 
 # ---- data ------------------------------------------------------------------
-# name \t dir \t alive \t waiting \t port \t ttyd \t recap
+# name \t dir \t alive \t waiting \t port \t ttyd \t recap \t state
+# state is what dm-stop.sh wrote (stopped|paused) or empty — a machine switched off on
+# purpose reads differently from one that died, and the picker must not confuse the two.
 rows() {
   python3 - "$REG" <<'PY'
 import json, os, subprocess, sys
@@ -61,13 +63,13 @@ def recap(d):
 for name, v in reg.items():
     d = v.get("dir", "")
     if not os.path.isdir(d):
-        print("\t".join([name, d, "0", "0", "", "", "directory is gone"]))
+        print("\t".join([name, d, "0", "0", "", "", "directory is gone", ""]))
         continue
     print("\t".join([name, d,
                      "1" if alive(v.get("session", "")) else "0",
                      str(waiting(d)),
                      str(v.get("port") or ""), str(v.get("ttyd_port") or ""),
-                     recap(d)]))
+                     recap(d), str(v.get("state") or "")]))
 PY
 }
 
@@ -114,13 +116,14 @@ draw() {
   printf '\n  %sJANUS%s  %s%s machines · %s%s\n\n' "$B" "$R" "$MUT" "$N" \
     "$([ "$need" -gt 0 ] && printf '%s%s needs you%s' "$WARN" "$need" "$MUT" || printf 'nothing waiting')" "$R"
   for i in $(seq 0 $((N-1))); do
-    local name dir up wait port recap dot mark tag
+    local name dir up wait port recap state dot mark tag
     name=$(field "$i" 1); up=$(field "$i" 3); wait=$(field "$i" 4)
-    port=$(field "$i" 5); recap=$(field "$i" 7)
+    port=$(field "$i" 5); recap=$(field "$i" 7); state=$(field "$i" 8)
     [ "$up" = "1" ] && dot="${OK}●${R}" || dot="${MUT}○${R}"
     [ "$i" = "$SEL" ] && mark="${ACC}▸${R}" || mark=" "
     if [ "$wait" != "0" ]; then tag="${WARN}${wait} waiting${R}"
     elif [ "$up" = "1" ]; then tag="${MUT}running${R}"
+    elif [ -n "$state" ]; then tag="${MUT}${state}${R}"      # switched off on purpose
     else tag="${MUT}stopped${R}"; fi
     printf '  %s %s%d%s  %s %-*s  %s\n' "$mark" "$D" $((i+1)) "$R" "$dot" "$W" "$name" "$tag"
     printf '       %s%s%s\n' "$MUT" "$recap" "$R"

@@ -5,6 +5,11 @@
 # Run ad hoc, or from a cron/watch. Silent no-op outside a dm project.
 set -uo pipefail
 [ -d .delivery ] || exit 0
+# It runs on every Stop, which some projects do not want. Only an explicit "foundry": false
+# in config.json turns it off — a missing key, a missing config or unreadable JSON all keep the
+# old behaviour, so no existing project changes because this switch appeared.
+ON=$(python3 -c "import json;print(json.load(open('.delivery/config.json')).get('foundry',True))" 2>/dev/null || echo True)
+[ "$ON" = False ] && exit 0
 python3 - <<'EOF'
 import json, os, collections, hashlib
 def lines(p):

@@ -23,6 +23,12 @@
     ],
     "PreToolUse": [
       {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/gate-check.sh\"" }
+        ]
+      },
+      {
         "matcher": "AskUserQuestion",
         "hooks": [
           { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/ask.sh\" ask", "timeout": 600 }
@@ -41,6 +47,12 @@
         "hooks": [
           { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/activity.sh\" tool" }
         ]
+      },
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/knowledge-log.sh\"" }
+        ]
       }
     ],
     "SubagentStop": [
@@ -54,6 +66,7 @@
       {
         "hooks": [
           { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/activity.sh\" stop" },
+          { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/handoff.sh\" >/dev/null 2>&1" },
           { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/scripts/foundry.sh\" >/dev/null 2>&1" }
         ]
       }

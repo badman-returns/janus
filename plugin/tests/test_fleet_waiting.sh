@@ -58,9 +58,9 @@ assert state["project"] == "here", state.get("project")
 EOF
 
 # the label is the machine name, never a count of machines
-grep -q 'fleetName").innerHTML = esc(s.project' "$HERE/../../plugin-mc/mission-control/index.html" \
+grep -q 'fleetName").innerHTML = esc(s.project' "$HERE/../../plugin-mc/mission-control/js/boot.js" \
   || fail "fleet switcher should be labelled with the current project"
-grep -q '"fleet · " +' "$HERE/../../plugin-mc/mission-control/index.html" \
+grep -q '"fleet · " +' "$HERE/../../plugin-mc/mission-control/js/boot.js" \
   && fail "fleet switcher is still labelled with a machine count"
 
 echo "PASS test_fleet_waiting"
