@@ -90,6 +90,21 @@ function state() {
       return { ...a, alive: age < 120, idle: age >= 120 && age < 1800, ageSec: Math.round(age) };
     } catch { return null; }
   }).filter(Boolean).filter(a => a.ageSec < 1800).sort((x, y) => x.ageSec - y.ageSec);
+  // Does any git repo track this path? Memoized per request — the same path repeats in the log,
+  // and each miss is a subprocess. `--show-toplevel` from the file's own directory finds a parent
+  // repo, which is the case a project-root test gets wrong.
+  const trackedCache = new Map();
+  const untracked = p => {
+    if (trackedCache.has(p)) return trackedCache.get(p);
+    const abs = path.resolve(PROJ_DIR, p);
+    let out = true;
+    try {
+      const dir = fs.existsSync(abs) && fs.statSync(abs).isDirectory() ? abs : path.dirname(abs);
+      out = !execSync("git rev-parse --show-toplevel", { cwd: dir, timeout: 2000, stdio: ["ignore", "pipe", "ignore"] }).toString().trim();
+    } catch { out = true; }   // not a repo, or the directory is gone: no trace either way
+    trackedCache.set(p, out);
+    return out;
+  };
   // what each gated slice promised (.delivery/checklist/<slice>.json), newest file first.
   // Every slice, not just one: the in-flight band joins these against the ledger by name.
   const clDir = path.join(PROJ_DIR, ".delivery", "checklist");
@@ -97,7 +112,12 @@ function state() {
     try { return JSON.parse(fs.readFileSync(path.join(clDir, f.name), "utf8")); } catch { return null; }
   }).filter(Boolean);
   // knowledge.log grouped by path, newest first. `outside` is the whole reason the log exists:
-  // a write above the project root leaves no git trace at all, so it can only be seen here.
+  // a write that no git repo tracks leaves no other trace, so it can only be seen here.
+  //
+  // It deliberately does NOT mean "above the project root". A machine running in a subdirectory
+  // writes to its parent repo all the time — `../programs/arc/...` is above PROJ_DIR and fully
+  // versioned — and badging that the same as an untracked memory write tells the operator the
+  // opposite of the truth. The question is whether SOME repo has it, so ask git.
   const kraw = readIf(path.join(PROJ_DIR, ".delivery", "knowledge.log"), 40000) || "";
   const kby = new Map();
   let kwrites = 0;
@@ -105,8 +125,7 @@ function state() {
     const [ts, p, kind] = line.split("\t");
     if (!p || !/^\d{4}-/.test(ts || "")) continue;          // a capped read can cut the first line in half
     kwrites++;
-    const outside = !path.resolve(PROJ_DIR, p).startsWith(PROJ_DIR + path.sep);
-    const g = kby.get(p) || { path: p, count: 0, last: null, kinds: [], outside };
+    const g = kby.get(p) || { path: p, count: 0, last: null, kinds: [], outside: untracked(p) };
     g.count++; if (!g.last || ts > g.last) g.last = ts;
     if (kind && !g.kinds.includes(kind)) g.kinds.push(kind);
     kby.set(p, g);
