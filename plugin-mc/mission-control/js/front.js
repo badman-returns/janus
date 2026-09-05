@@ -20,8 +20,8 @@ function bubble(kind) { const d = document.createElement("div"); d.className = "
 function onEvent(e) {
   orb.on(e);
   if (e.t === "state") {
-    document.querySelectorAll(".stateword").forEach(el => { el.textContent = SHORT[e.state]; el.dataset.s = e.state; });
-    if (!PILL) { $("#barword").textContent = WORDS[e.state]; $("#bardot").dataset.s = e.state; }
+    document.querySelectorAll(".stateword").forEach(el => { el.textContent = SHORT[e.state] || e.state; el.dataset.s = e.state; });
+    if (!PILL) { $("#barword").textContent = WORDS[e.state] || e.state; $("#bardot").dataset.s = e.state; }
     about = e.state === "waiting" ? (e.about || null) : null; markCards();
     if (PILL && ["idle", "waiting", "muted", "offline"].includes(e.state)) $("#pilltext").textContent = WORDS[e.state];
   } else if (e.t === "you") {
@@ -48,7 +48,12 @@ if (!PILL) $("#talkbox").addEventListener("submit", async ev => {
   try { await fetch(VOICE + "/say", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) }); }
   catch { await fetch("/api/front/note", { method: "POST", body: JSON.stringify({ project: FLEET, text }) }); onEvent({ t: "you", text, final: true }); }
 });
-if (!PILL) document.addEventListener("keydown", e => { if (e.metaKey && e.key === ".") fetch(VOICE + "/stop", { method: "POST" }); });
+// the two keys the title bar advertises. ⌥ Space is ignored while a text field has focus, so
+// typing a space in the Talk box does not start the mic.
+if (!PILL) document.addEventListener("keydown", e => {
+  if (e.metaKey && e.key === ".") fetch(VOICE + "/stop", { method: "POST" });
+  else if (e.altKey && e.code === "Space" && !/^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName)) { e.preventDefault(); fetch(VOICE + "/listen", { method: "POST" }); }
+});
 
 // ---- the fleet: rail, now, cards, employees, from /api/front on every nudge ----
 let FLEET = "fleet", DATA = null;
