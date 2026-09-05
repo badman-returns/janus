@@ -10,6 +10,7 @@ class Machine:
         self.flags = {'dnd': False, 'meeting': False, 'voice_on': False}
         self.current = None        # [reply, sentences, index] being spoken
         self.paused = None         # the reply to resume after an interruption is answered
+        self.queue = []            # replies that landed mid-utterance, each spoken in its turn
         self.pending_note = None   # stem of the note whose reply we wait for
         self.about = None          # the card a waiting state is about
         self.solicited = False     # the turn began with the operator speaking or pressing the key
@@ -60,12 +61,16 @@ class Machine:
             will_speak = speak == 'yes' or (matches and self.solicited) or (speak is None and self.flags['voice_on'])
             if speak == 'no': will_speak = False
             if self.muted() and not (matches and self.solicited): will_speak = False
-            if self.state == 'speaking' and not matches: will_speak = False   # nothing overlaps
             if matches: self.pending_note = None
+            if self.state == 'listening':                                     # never speak into an open microphone
+                out.append(('show_reply', rid, sents, a.get('via'), False)); return out
             out.append(('show_reply', rid, sents, a.get('via'), will_speak))
             if will_speak and sents:
-                self.current = [rid, sents, 0]; self.about = a.get('needs')
-                out.append(('speak', rid, 0)); self._go('speaking', out, reply=rid)
+                if self.state == 'speaking':                                  # nothing overlaps: it waits its turn
+                    self.queue.append((rid, sents, a.get('needs')))
+                else:
+                    self.current = [rid, sents, 0]; self.about = a.get('needs')
+                    out.append(('speak', rid, 0)); self._go('speaking', out, reply=rid)
             elif matches:
                 q = a.get('needs') or (sents and sents[-1].endswith('?'))
                 self._go('waiting' if q else self._rest(), out, about=a.get('needs'))
@@ -78,13 +83,16 @@ class Machine:
                 if self.paused:
                     self.current = self.paused; self.paused = None
                     out.append(('say_bridge', 'Back to where I was.')); out.append(('speak', self.current[0], self.current[2]))
+                elif self.queue:
+                    rid, sents, needs = self.queue.pop(0)                     # the next one waiting; still speaking
+                    self.current = [rid, sents, 0]; self.about = needs; out.append(('speak', rid, 0))
                 else:
                     needs = self.about; self.about = None
                     q = needs or done[1][-1].endswith('?')
                     self._go('waiting' if q else self._rest(), out, about=needs)
         elif ev == 'stop':
             if self.state == 'speaking': out.append(('pause_playback',))
-            self.current = None; self.paused = None; self.pending_note = None; out.append(('close_mic',))
+            self.current = None; self.paused = None; self.pending_note = None; self.queue = []; out.append(('close_mic',))
             self._go(self._rest(), out)
         elif ev == 'timeout':
             if self.state == 'waiting': self._go(self._rest(), out)
@@ -118,6 +126,16 @@ def selftest():
     o = m.feed('reply', stem='t1', sentences=['Quiet.']); assert m.state == 'speaking'      # voice.on is set, so it speaks
     m.feed('stop'); m.feed('flag', name='voice_on', value=False); m.feed('typed', text='status', stem='t2')
     o = m.feed('reply', stem='t2', sentences=['Quiet.']); assert m.state == 'idle' and o[0][4] is False   # typed, answered in writing
+    m.feed('key'); m.feed('speech_end', text='status', stem='q1'); m.feed('wake'); assert m.state == 'listening'
+    o = m.feed('reply', stem='q1', sentences=['Here.'])                       # it landed with the mic open
+    assert m.state == 'listening' and not [x for x in o if x[0] == 'speak'] and o[0][4] is False
+    m.feed('speech_end', text='and the other one', stem='q2'); assert m.state == 'thinking'
+    m.feed('reply', stem='q2', sentences=['One.', 'Two.']); assert m.state == 'speaking'
+    o = m.feed('reply', stem='q3', sentences=['Queued.'], speak='yes')        # it waits its turn, it does not overlap
+    assert m.state == 'speaking' and not [x for x in o if x[0] == 'speak'] and o[0][4] is True
+    m.feed('sentence_done')                                                   # 'Two.' is playing
+    o = m.feed('sentence_done'); assert ('speak', 'q3', 0) in o and m.state == 'speaking'   # the queue drains
+    m.feed('sentence_done'); assert m.state == 'idle'
     print('PASS state selftest')
 
 if __name__ == '__main__':
