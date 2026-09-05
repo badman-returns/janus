@@ -97,6 +97,9 @@ reg[proj] = {"dir": pdir, "session": session, "port": int(port), "ttyd_port": in
 json.dump(reg, open(reg_path, "w"), indent=2)
 EOF
 
+# ---- the bridge: every machine's claude window linked into one tmux session for the phone
+bash "$PLUGIN_ROOT/scripts/bridge-link.sh" >/dev/null 2>&1 || true
+
 echo "── janus up ───────────────────────────────────"
 echo "  project   $PROJ"
 echo "  session   $SESSION   (tmux attach -t $SESSION)"

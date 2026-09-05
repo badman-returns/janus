@@ -41,7 +41,17 @@ fi
 if [ "$STATE" = paused ]; then
   echo "session   $SESSION left running (--pause)"
 elif tmux has-session -t "$SESSION" 2>/dev/null; then
-  tmux kill-session -t "$SESSION" 2>/dev/null && echo "session   $SESSION killed" || echo "session   $SESSION would not die"
+  # Windows first, by id. bridge-link.sh links each claude window into the `bridge` session, and a
+  # window that lives in two sessions survives kill-session on either one — the machine would look
+  # stopped while its claude kept running inside bridge. Killing by id kills it everywhere.
+  for w in $(tmux list-windows -t "$SESSION" -F '#{window_id}' 2>/dev/null); do
+    tmux kill-window -t "$w" 2>/dev/null
+  done
+  tmux kill-session -t "$SESSION" 2>/dev/null   # the last window dying takes the session with it
+  if tmux has-session -t "$SESSION" 2>/dev/null
+    then echo "session   $SESSION would not die"
+    else echo "session   $SESSION killed"
+  fi
 else
   echo "session   $SESSION was not running"
 fi

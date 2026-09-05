@@ -14,4 +14,5 @@ CMD="${CFG:+CLAUDE_CONFIG_DIR=$(q "${CFG/#\~/$HOME}") }${DM_CLAUDE_BIN:-claude}"
 for a in "$@"; do CMD="$CMD $(q "$a")"; done
 tmux new-window -t "$SESSION" -n "$W" -c "$PWD"
 tmux send-keys -t "$SESSION:$W" "$CMD" Enter
+bash "$(dirname "$0")/bridge-link.sh" >/dev/null 2>&1 || true
 echo "$W"
