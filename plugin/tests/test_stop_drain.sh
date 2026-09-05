@@ -5,7 +5,9 @@ HERE="$(cd "$(dirname "$0")" && pwd)"; S="$HERE/../scripts/activity.sh"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 mkdir -p "$T/.delivery/inbox"; echo hi > "$T/.delivery/inbox/note-1-hi.txt"
 cd "$T"; fail(){ echo "FAIL test_stop_drain: $1"; exit 1; }
+echo '{"project":"t"}' > .delivery/config.json   # no pickup_skill key → the /dm line
 WANT='{"decision":"block","reason":"1 inbox item(s) waiting — run /dm process the pending items in .delivery/inbox, then continue"}'
+WANTC='{"decision":"block","reason":"1 inbox item(s) waiting — run /concierge process the pending items in .delivery/inbox, then continue"}'
 run(){ echo "$1" | env -u TMUX -u DM_TMUX_SESSION "${@:2}" bash "$S" stop; }
 
 out=$(run '{"session_id":"abc12345"}')
@@ -20,6 +22,9 @@ out=$(run '{"session_id":"abc12345"}' TMUX=x DM_TMUX_SESSION=dm-foo); [ -z "$out
 out=$(run '{"session_id":"abc12345"}' TMUX=x DM_TMUX_SESSION=other); [ "$out" = "$WANT" ] || fail "no block in a non-dm tmux: '$out'"
 rm .delivery/.nudge-abc12345
 out=$(echo '{"session_id":"abc12345"}' | env -u TMUX bash "$S" prompt); [ -z "$out" ] || fail "prompt event printed: $out"
+echo '{"project":"t","pickup_skill":"concierge"}' > .delivery/config.json
+out=$(run '{"session_id":"abc12345"}'); [ "$out" = "$WANTC" ] || fail "pickup_skill ignored: '$out'"
+rm .delivery/.nudge-abc12345
 rm .delivery/inbox/note-1-hi.txt
 out=$(run '{"session_id":"abc12345"}'); [ -z "$out" ] || fail "nudged with an empty inbox: $out"
 cd /; out=$(echo '{}' | env -u TMUX bash "$S" stop); [ -z "$out" ] || fail "not silent outside a dm project: $out"

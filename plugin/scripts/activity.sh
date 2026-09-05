@@ -85,5 +85,11 @@ open(nudge, "w").close()
 print(n)
 EOF
 )
-[ -n "$N" ] && printf '{"decision":"block","reason":"%s inbox item(s) waiting — run /dm process the pending items in .delivery/inbox, then continue"}\n' "$N"
+if [ -n "$N" ]; then
+  # the skill that answers the inbox is per-machine (`pickup_skill`); a missing or broken
+  # pickup-line.sh falls back to the stock line, because a hook must never fail to speak
+  LINE=$(bash "$(dirname "${BASH_SOURCE[0]}")/pickup-line.sh" 2>/dev/null)
+  [ -n "$LINE" ] || LINE="/dm process the pending items in .delivery/inbox"
+  printf '{"decision":"block","reason":"%s inbox item(s) waiting — run %s, then continue"}\n' "$N" "$LINE"
+fi
 exit 0
