@@ -22,6 +22,7 @@ MIC = str(C.get('mic', '1')); PORT = int(C.get('port', 8790)); WAKE = C.get('wak
 VOICE = C.get('kokoro_voice', os.environ.get('KOKORO_VOICE', 'am_michael')); PARTIALS = bool(C.get('partials', True))
 WHISPER = C.get('whisper_url', 'http://127.0.0.1:8178/v1/audio/transcriptions')
 VAD_MODE = C.get('vad', 'silero'); RMS_ON = float(C.get('vad_rms', 0.015))    # ponytail: one knob, tune at the desk
+ECHO_MARGIN = float(C.get('echo_margin', 1.8))    # how far over its own echo a voice must be to be someone else
 SESSION = 'dm-' + CONF.get('project', 'fleet'); PICKUP = CONF.get('pickup_skill', 'dm')
 BRAIN = os.path.expanduser('~/.brain'); os.makedirs(os.path.join(BRAIN, 'voice', 'failed'), exist_ok=True)
 SR = 16000; FRAME = 1280            # 80 ms frames: what openWakeWord wants
@@ -114,7 +115,9 @@ def watch_replies(on_reply):
 
 # ---- speaking: render i+1 while i plays; afplay is the process we end to pause ----
 class Player:
-    def __init__(self, on_done): self.on_done = on_done; self.proc = None; self.cache = {}; self.lock = threading.Lock(); self.gen = 0
+    def __init__(self, on_done):
+        self.on_done = on_done; self.proc = None; self.cache = {}; self.lock = threading.Lock(); self.gen = 0
+        self.play_level = 0.0; self.play_t0 = 0.0     # what the room is being given right now, and since when; 0 when quiet
     def render(self, key, text):
         if key in self.cache: return self.cache[key]
         out = os.path.join(BRAIN, 'voice', f'{key[0]}-{key[1]}.wav')
@@ -134,9 +137,11 @@ class Player:
             env = self.envelope(path); t0 = time.time()
             with self.lock:
                 if gen != self.gen: return
-                self.proc = subprocess.Popen(['afplay', path])
+                self.proc = subprocess.Popen(['afplay', path]); self.play_t0 = t0
             while self.proc.poll() is None:
-                k = int((time.time() - t0) * 30); stream.emit({'t': 'level', 'v': round(min(1.0, env[k] * 4), 3) if k < len(env) else 0.0}); time.sleep(1 / 30)
+                k = int((time.time() - t0) * 30); self.play_level = env[k] if k < len(env) else 0.0
+                stream.emit({'t': 'level', 'v': round(min(1.0, self.play_level * 4), 3)}); time.sleep(1 / 30)
+            self.play_level = 0.0; self.play_t0 = 0.0
             stream.emit({'t': 'level', 'v': 0.0})
             if gen == self.gen and self.proc.returncode == 0: self.on_done()
         threading.Thread(target=run, daemon=True).start()
@@ -151,6 +156,7 @@ class Loop:
         self.m = Machine(); self.replies = {}; self.player = Player(self.sentence_done); self.lock = threading.RLock()
         self.mic_open = False; self.buf = []; self.silence = 0; self.speech = 0; self.opened_at = 0.0; self.last_partial = 0.0
         self.flags = {'dnd': False, 'meeting': False, 'voice_on': False}; self.said_working = False
+        self.echo = 0.0; self.echo_rid = None; self.bridging = False    # how loudly the room hands Janus back his own voice
     def feed(self, ev, **kw):
         with self.lock: self.act(self.m.feed(ev, **kw))
     def act(self, actions):
@@ -170,7 +176,9 @@ class Loop:
     def bridge(self, text):
         out = os.path.join(BRAIN, 'voice', 'bridge-' + slugify(text) + '.wav')
         if not os.path.exists(out): subprocess.run(['bash', os.path.join(HERE, 'tts.sh'), text, out, VOICE], capture_output=True)
-        subprocess.run(['afplay', out])
+        self.bridging = True                     # a bridge plays outside the Player, so no envelope guards it: hold barge-in
+        try: subprocess.run(['afplay', out])
+        finally: self.bridging = False
     def sentence_done(self): self.feed('sentence_done')
     def on_reply(self, stem, sents, h):
         self.replies[stem] = sents
@@ -194,8 +202,18 @@ class Loop:
                     frames = list(self.buf); had = self.speech > 0; self.mic_open = False
                     threading.Thread(target=self.finish, args=(frames, had), daemon=True).start()
             elif st == 'speaking':
-                self.speech = self.speech + 1 if vad(f) else 0
-                if self.speech >= 4: self.speech = 0; self.feed('wake')             # barge-in: 320 ms of speech over the voice
+                rid = self.m.current[0] if self.m.current else None
+                if rid != self.echo_rid: self.echo_rid = rid; self.echo = 0.0; self.speech = 0; wake.reset()   # a new reply, a new room
+                pl = self.player.play_level; r = rms(f)
+                if pl > 0.05:                    # the voice is sounding: learn how much of it comes back down the microphone
+                    ratio = r / pl; self.echo = ratio if self.echo == 0.0 else 0.9 * self.echo + 0.1 * ratio
+                if max(wake.predict(f).values()) > 0.5:                             # the name always interrupts
+                    self.speech = 0; wake.reset(); self.feed('wake')
+                else:                                                               # louder than his own echo, for 320 ms
+                    over = vad(f) and r > max(RMS_ON, self.echo * pl * ECHO_MARGIN)
+                    settling = self.bridging or time.time() - self.player.play_t0 < 0.6      # calibrate first, judge after
+                    self.speech = self.speech + 1 if over and not settling else 0
+                    if self.speech >= 4: self.speech = 0; self.feed('wake')
             elif st in ('idle', 'waiting'):
                 scores = wake.predict(f)
                 if max(scores.values()) > 0.5: wake.reset(); self.feed('wake')

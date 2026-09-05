@@ -3,7 +3,10 @@
 # hears it, the concierge answers, and the stream shows the states; a second clip interrupts the
 # answer. Usage: selftest-room.sh [port]   (from the fleet machine's root). Prints the state sequence.
 # Env: ROOM_REPLY_DIR — with no concierge listening, write the two answers here (the machine's
-# .delivery/replies) and the whole scene runs unattended. Unset: the live concierge answers.
+# .delivery/replies) and the whole scene runs unattended; it then also checks that Janus resumed and
+# that he did not interrupt himself. Unset: the live concierge answers.
+# The room is the wire: the Mac's default OUTPUT must be the built-in speakers. Send it to AirPods and
+# the microphone never hears the name (measured: wake 0.03 against 0.995), which reads as a dead loop.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"; PORT=${1:-8790}; T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 PHRASE=$(python3 -c "import json;print(json.load(open('.delivery/config.json')).get('voice',{}).get('wake_phrase','hey jarvis'))" 2>/dev/null || echo "hey jarvis")
@@ -23,7 +26,9 @@ answer() {  # answer <text>: stand in for the concierge — wait for the note we
   mkdir -p "$ROOM_REPLY_DIR"; printf '%s\n' "$text" > "$ROOM_REPLY_DIR/$stem.md"
   echo "room selftest: answered $stem"
 }
-bash "$HERE/tts.sh" "$PHRASE." "$T/wake.wav" >/dev/null; bash "$HERE/tts.sh" "What is waiting?" "$T/q.wav" >/dev/null; bash "$HERE/tts.sh" "Wait, why two?" "$T/cut.wav" >/dev/null
+bash "$HERE/tts.sh" "$PHRASE." "$T/wake.wav" >/dev/null; bash "$HERE/tts.sh" "What is waiting?" "$T/q.wav" >/dev/null
+bash "$HERE/tts.sh" "$PHRASE, wait, why two?" "$T/cut.wav" >/dev/null   # the name leads: it interrupts whatever the echo rule thinks
+NOTES=$(ls .delivery/inbox/note-*.txt 2>/dev/null | wc -l | tr -d ' ')
 curl -sN "http://127.0.0.1:$PORT/stream" > "$T/stream.txt" & CURL=$!
 sleep 1; afplay "$T/wake.wav"; sleep 0.3; afplay "$T/q.wav"
 answer "Two things. The video is ready. Want it?"
@@ -34,4 +39,9 @@ sleep 30; kill $CURL 2>/dev/null
 grep -o '"state": "[a-z]*"' "$T/stream.txt" | uniq | tr '\n' ' '; echo
 cp "$T/stream.txt" .delivery/voice-selftest-stream.txt
 for s in listening thinking speaking; do grep -q "\"state\": \"$s\"" "$T/stream.txt" || { echo "room selftest: never saw $s"; exit 1; }; done
+if [ -n "${ROOM_REPLY_DIR:-}" ]; then                       # unattended: the whole scene is ours to check
+  grep -q 'Back to where I was' "$T/stream.txt" || { echo "room selftest: never resumed after the interruption"; exit 1; }
+  NEW=$(( $(ls .delivery/inbox/note-*.txt 2>/dev/null | wc -l | tr -d ' ') - NOTES ))
+  [ "$NEW" -eq 2 ] || { echo "room selftest: $NEW notes, expected 2 — Janus interrupted himself"; exit 1; }
+fi
 echo "room selftest: ok"
