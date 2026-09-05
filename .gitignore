@@ -7,3 +7,4 @@ node_modules/
 .delivery/build-needs.md
 voice/.venv/
 __pycache__/
+proof/**/review.html
