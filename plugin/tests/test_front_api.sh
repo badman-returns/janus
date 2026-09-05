@@ -6,7 +6,7 @@
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"; SRV="$HERE/../../plugin-mc/mission-control/server.js"
 T=$(mktemp -d); PID=""; trap 'kill $PID 2>/dev/null; rm -rf "$T"' EXIT; fail(){ echo "FAIL test_front_api: $1"; exit 1; }
-mkdir -p "$T/home/.delivery-machine" "$T/a/.delivery/inbox" "$T/b/.delivery/inbox" "$T/b/.delivery/replies" "$T/b/proof/x" "$T/fleet/.delivery"
+mkdir -p "$T/home/.delivery-machine" "$T/a/.delivery/inbox" "$T/b/.delivery/inbox" "$T/b/.delivery/replies" "$T/b/proof/x" "$T/fleet/.delivery" "$T/fleet/proof/y"
 echo '{"project":"a","services":{},"claude_config_dir":"~/.claude-tsg"}' > "$T/a/.delivery/config.json"
 echo '{"project":"b","services":{},"claude_config_dir":"~/.claude-alt"}' > "$T/b/.delivery/config.json"
 echo '{"project":"fleet","services":{}}' > "$T/fleet/.delivery/config.json"
@@ -14,11 +14,12 @@ printf 'GATE 2 — review proof for x\n\nAPPROVE / REJECT with note\n' > "$T/b/.
 echo '{"ts":"2026-01-01T00:00:00Z","agent":"dm-builder","slice":"x","status":"built","note":"n"}' > "$T/b/.delivery/runs.jsonl"
 printf 'via: b\n\nAll quiet.\n' > "$T/b/.delivery/replies/note-1-voice-status.md"
 head -c 5000 /dev/zero > "$T/b/proof/x/proof.mp4"
+head -c 5000 /dev/zero > "$T/fleet/proof/y/a.mp4"
 cat > "$T/home/.delivery-machine/registry.json" <<EOF
 {"a":{"dir":"$T/a","session":"dm-a","port":1,"ttyd_port":2,"started":"x"},"b":{"dir":"$T/b","session":"dm-b","port":3,"ttyd_port":4,"started":"x"}}
 EOF
 PORT=$((20000 + RANDOM % 20000))
-HOME="$T/home" node "$SRV" --port "$PORT" --project "$T/fleet" >/dev/null 2>&1 & PID=$!
+HOME="$T/home" node "$SRV" --port "$PORT" --project "$T/fleet" >/dev/null 2>&1 & PID=$!; disown
 for i in $(seq 1 40); do curl -s "http://127.0.0.1:$PORT/api/front" >/dev/null 2>&1 && break; sleep 0.25; done
 J=$(curl -s "http://127.0.0.1:$PORT/api/front")
 echo "$J" | python3 -c "
@@ -40,4 +41,10 @@ echo "$H" | grep -q '^HTTP/1.1 206' || fail "no 206 for a range: $H"
 echo "$H" | grep -qi 'content-length: 10' || fail "range length wrong"
 curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/api/front/proof?project=b&file=../.delivery/config.json" | grep -q 404 || fail "path escape not refused"
 curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/front" | grep -q 200 || fail "/front not served"
+# the server's own /proof/ route learns the same Range, and refuses an unsatisfiable one with 416
+V=$(curl -s -D - -o /dev/null -H 'Range: bytes=0-9' "http://127.0.0.1:$PORT/proof/y/a.mp4")
+echo "$V" | grep -q '^HTTP/1.1 206' || fail "no 206 for a range on /proof/: $V"
+echo "$V" | grep -qi 'content-length: 10' || fail "range length wrong on /proof/"
+curl -s -o /dev/null -w '%{http_code}' -H 'Range: bytes=999999-' "http://127.0.0.1:$PORT/proof/y/a.mp4" | grep -q 416 || fail "a range past the end must be 416"
+[ "$(curl -s --path-as-is -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/proof/../.delivery/config.json")" != 200 ] || fail "/proof/ traversal served the config"
 echo "PASS test_front_api"

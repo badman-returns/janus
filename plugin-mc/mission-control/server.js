@@ -261,6 +261,8 @@ const serveFile = (req, res, file, mime) => {
   if (r && (r[1] || r[2])) {
     const start = r[1] ? parseInt(r[1], 10) : Math.max(0, st.size - parseInt(r[2], 10));
     const end = r[1] && r[2] ? Math.min(parseInt(r[2], 10), st.size - 1) : st.size - 1;
+    // past the end, or backwards: 416 and the real size, never a 206 with a negative length
+    if (start >= st.size || start > end) { res.writeHead(416, { "content-range": `bytes */${st.size}` }); return res.end(); }
     res.writeHead(206, { "content-type": mime, "content-range": `bytes ${start}-${end}/${st.size}`, "content-length": end - start + 1, "accept-ranges": "bytes" });
     return fs.createReadStream(file, { start, end }).pipe(res);
   }
