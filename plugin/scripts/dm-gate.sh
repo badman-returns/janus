@@ -32,6 +32,8 @@ if [ -s "$PROOF/$SLICE/review.md" ] && [ -s "$V/diff2html.min.js" ]; then
   python3 - "$PLUG/templates/review.html" "$PROOF/$SLICE" "$SLICE" "$V" "$BASE" <<'PY'
 import sys, subprocess, html, pathlib
 tpl, pdir, slice_, v, base = sys.argv[1:]
+if not pathlib.Path(tpl).is_file():
+    sys.exit("dm-gate: %s missing — gate opened without the narrated diff" % tpl)
 guide = html.escape(pathlib.Path(pdir, 'review.md').read_text()).replace('\n\n', '</p><p>').replace('\n', ' ')
 diff = subprocess.run(['git', 'diff', base + '...HEAD'], capture_output=True, text=True).stdout or subprocess.run(['git', 'diff', base], capture_output=True, text=True).stdout
 js = pathlib.Path(v, 'diff2html.min.js').read_text(); css = pathlib.Path(v, 'diff2html.min.css').read_text() if pathlib.Path(v, 'diff2html.min.css').exists() else ''
@@ -42,11 +44,13 @@ raw = page.index('<script type="text/plain" id="raw">'); render = page.index('<s
 page = page[:render] + page[raw:page.index('</script>', raw) + 9] + page[render:raw] + page[page.index('</script>', raw) + 9:]
 pathlib.Path(pdir, 'review.html').write_text(page)
 PY
-  echo "review: $PROOF/$SLICE/review.html" >> ".delivery/inbox/gate-$SLICE-proof.txt"
+  # only name a page that is actually there — a missing template must not forge the line
+  [ -s "$PROOF/$SLICE/review.html" ] && echo "review: $PROOF/$SLICE/review.html" >> ".delivery/inbox/gate-$SLICE-proof.txt"
 fi
-# a draft PR where a remote and gh exist; the guide is the body
-if command -v gh >/dev/null 2>&1 && git remote get-url origin >/dev/null 2>&1 && [ -s "$PROOF/$SLICE/review.md" ]; then
-  URL=$(gh pr create --draft --title "$SLICE" --body-file "$PROOF/$SLICE/review.md" 2>/dev/null || gh pr view --json url -q .url 2>/dev/null || true)
+# a draft PR where a remote and gh exist; the guide is the body. GH_BIN points a test at a stub.
+GH=${GH_BIN:-gh}
+if command -v "$GH" >/dev/null 2>&1 && git remote get-url origin >/dev/null 2>&1 && [ -s "$PROOF/$SLICE/review.md" ]; then
+  URL=$("$GH" pr create --draft --title "$SLICE" --body-file "$PROOF/$SLICE/review.md" 2>/dev/null || "$GH" pr view --json url -q .url 2>/dev/null || true)
   [ -n "$URL" ] && echo "pr: $URL" >> ".delivery/inbox/gate-$SLICE-proof.txt"
 fi
 
