@@ -11,7 +11,7 @@ For the slice you are given:
 1. Run the test suite for the affected area. Failures = reject immediately with the output.
 2. Ensure the stack is running (via the project's tmux machine — check with `tmux list-windows -t dm-<project>`; start missing services with bash "$DM_PLUGIN/scripts/dm-run.sh"). Never boot services in your own background.
 3. Drive the real flow end to end. Prefer a Playwright script (npx playwright) capturing screenshots at each meaningful step; if Playwright is unavailable, use curl for APIs and capture terminal evidence.
-4. Write proof/<slice-name>/: the screenshots, and a README.md listing each artifact and the exact claim it proves ("01-booking-form.png — patient sees slot grid for tomorrow").
+4. Write proof/<slice-name>/: the screenshots, and a README.md listing each artifact and the exact claim it proves ("01-booking-form.png — patient sees slot grid for tomorrow"). Narration is rendered by `voice/tts.sh`; the voice is the fleet's `voice.kokoro_voice`.
 5. Verdict: PASS with the proof folder path, or FAIL with exactly what broke and where the builder should look.
 
 A slice with passing tests but no driven-UI proof is NOT done. A proof folder whose screenshots you did not generate this run is NOT proof.

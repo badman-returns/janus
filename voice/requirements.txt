@@ -1,0 +1,8 @@
+kokoro-onnx==0.4.7
+onnxruntime==1.29.0
+openwakeword==0.6.0
+numpy==2.5.2
+soundfile==0.14.0
+rumps>=0.4.0
+pynput>=1.7.7
+pyobjc-framework-WebKit>=11

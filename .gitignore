@@ -6,3 +6,4 @@ node_modules/
 .delivery/build/
 .delivery/build-needs.md
 voice/.venv/
+__pycache__/
