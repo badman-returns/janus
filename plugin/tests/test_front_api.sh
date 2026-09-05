@@ -2,7 +2,7 @@
 # /api/front reads every registered machine's gates, ledger and replies and tells the seat; a reply
 # posted through /api/front/reply lands in the right machine and removes its gate; a note lands in
 # another; a proof video is served with Range so a <video> can scrub it; a path escape is refused.
-# /front is asserted in Task 7, which creates front.html
+# /front serves the one screen.
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"; SRV="$HERE/../../plugin-mc/mission-control/server.js"
 T=$(mktemp -d); PID=""; trap 'kill $PID 2>/dev/null; rm -rf "$T"' EXIT; fail(){ echo "FAIL test_front_api: $1"; exit 1; }
@@ -39,4 +39,5 @@ H=$(curl -s -D - -o /dev/null -H 'Range: bytes=0-9' "http://127.0.0.1:$PORT/api/
 echo "$H" | grep -q '^HTTP/1.1 206' || fail "no 206 for a range: $H"
 echo "$H" | grep -qi 'content-length: 10' || fail "range length wrong"
 curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/api/front/proof?project=b&file=../.delivery/config.json" | grep -q 404 || fail "path escape not refused"
+curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:$PORT/front" | grep -q 200 || fail "/front not served"
 echo "PASS test_front_api"

@@ -1,0 +1,24 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Janus</title><link rel="stylesheet" href="/front.css"><script src="/vendor/three.min.js"></script></head>
+<body>
+<div class="win">
+  <div class="bar"><span class="glyph" id="bardot" data-s="idle"></span><span class="name">Janus</span><span id="barword">listening for your name</span><span id="barflags"></span><span class="sp"></span><span class="kbd">⌥ Space to talk</span><span class="kbd">⌘ . stop</span></div>
+  <div class="body">
+    <div class="rail"><div class="h">Machines</div><div id="rail"></div></div>
+    <div class="main">
+      <div class="h">Now</div><div class="now" id="now"></div>
+      <div class="h">Waiting on you</div><div id="cards"></div>
+      <div class="h">Employees · last reports</div><div class="emp" id="emp"></div>
+    </div>
+    <div class="talk">
+      <div class="h">Talk</div>
+      <div class="presence"><canvas id="orb" width="140" height="140" aria-label="Janus"></canvas><div class="word stateword" id="stateword" data-s="idle">idle</div></div>
+      <div class="msgs" id="talk"></div>
+      <form class="talkbox" id="talkbox"><input id="say" placeholder="Type to Janus, or say its name" autocomplete="off"><button>Send</button></form>
+      <div class="mic" id="mic"></div>
+    </div>
+  </div>
+</div>
+<div class="drawer" id="drawer" hidden><div class="strip"><b id="drawername"></b><span class="sp"></span><button id="drawerterm">terminal</button><button id="drawerclose">close</button></div><iframe id="drawerframe" title="machine"></iframe></div>
+<script type="module" src="/js/front.js"></script>
+</body></html>
