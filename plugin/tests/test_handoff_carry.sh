@@ -46,8 +46,11 @@ echo "$HO" | grep -q "P6.yaml"                   || fail "knowledge path missing
 echo "$HO" | grep -q "2 edits"                   || fail "repeat edits not counted"
 echo "$HO" | grep -q "memory/note.md"            || fail "out-of-repo memory write missing — its only trace"
 
-# and session start names the resume point rather than leaving it to be discovered
-OUT=$(bash "$S" 2>/dev/null)
+# and session start names the resume point rather than leaving it to be discovered.
+# Fake HOME: session-start injects the brain from $HOME/.delivery-machine/brain, and the operator's
+# real brain in this output would make the greps below depend on what the wiki happens to say.
+mkdir -p "$T/home"
+OUT=$(HOME="$T/home" bash "$S" 2>/dev/null)
 echo "$OUT" | grep -q "OPEN CHECKLIST: wiring" || fail "session-start did not surface the open checklist"
 echo "$OUT" | grep -q "1/2 done"               || fail "session-start did not say how far along"
 echo "$OUT" | grep -q "GATED, NOT APPROVED"    || fail "session-start did not flag the unapproved gate"

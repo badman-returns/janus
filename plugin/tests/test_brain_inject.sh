@@ -14,4 +14,11 @@ echo "$OUT" | grep -q '# index' || fail "index not injected"
 rm "$T/home/.delivery-machine/brain"
 OUT=$(cd "$T/proj" && HOME="$T/home" bash "$SS" 2>/dev/null) || fail "session-start failed without a brain"
 echo "$OUT" | grep -q 'RULE-MARKER' && fail "injected without a brain pointer"
+# a half-built brain (pointer and index, no METHOD) is skipped as silently as a missing pointer:
+# no header, and no cat: on stderr either — hence 2>&1 rather than 2>/dev/null.
+echo "$T/brain" > "$T/home/.delivery-machine/brain"
+rm "$T/brain/wiki/method/METHOD.md"
+OUT=$(cd "$T/proj" && HOME="$T/home" bash "$SS" 2>&1) || fail "session-start failed on a half-built brain"
+echo "$OUT" | grep -q 'BRAIN' && fail "header printed for a half-built brain"
+echo "$OUT" | grep -q 'cat:'  && fail "cat error leaked for a half-built brain"
 echo "PASS test_brain_inject"
