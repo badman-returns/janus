@@ -19,7 +19,7 @@ if not all(k in want for k in ("name", "email", "config_dir")): sys.exit(0)   # 
 if name != want["name"] or email != want["email"]:
     problems.append(f'git identity is "{name} <{email}>", expected "{want["name"]} <{want["email"]}>":\n  git config --local user.name "{want["name"]}"\n  git config --local user.email "{want["email"]}"')
 if os.path.realpath(cfg) != os.path.realpath(os.path.expanduser(want["config_dir"])):
-    problems.append(f'Claude account is {cfg}, expected {want["config_dir"]} for this path:\n  start this session with CLAUDE_CONFIG_DIR={want["config_dir"]} (dm.sh reads config.json claude_config_dir)')
+    problems.append(f'Claude account is {cfg}, expected {want["config_dir"]} for this path:\n  restart this session with CLAUDE_CONFIG_DIR={want["config_dir"]} (dm.sh reads config.json claude_config_dir)')
 if problems:
     print("IDENTITY MISMATCH in " + top); print("\n".join(problems)); sys.exit(1)
 EOF

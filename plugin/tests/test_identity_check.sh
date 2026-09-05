@@ -20,4 +20,12 @@ cd "$T/work/repo"; echo '{bad json' > "$T/home/.delivery-machine/identities.json
 OUT=$(HOME="$T/home" CLAUDE_CONFIG_DIR="$T/home/.claude-tsg" bash "$IC" 2>&1); [ $? = 0 ] && [ -z "$OUT" ] || fail "corrupt map should pass silently: $OUT"
 echo "{\"$T/work\":{\"name\":\"work-user\"}}" > "$T/home/.delivery-machine/identities.json"
 OUT=$(HOME="$T/home" CLAUDE_CONFIG_DIR="$T/home/.claude-tsg" bash "$IC" 2>&1); [ $? = 0 ] && [ -z "$OUT" ] || fail "incomplete entry should pass silently: $OUT"
+# The hook runs the check BEFORE its own `[ -d .delivery ]` exit: a mapped repo that is not a Janus
+# project still gets checked. And it stays fail-open — loud in the transcript, exit 0 regardless.
+echo "{\"$T/work\":{\"name\":\"work-user\",\"email\":\"t@work\",\"config_dir\":\"$T/home/.claude-alt\"}}" > "$T/home/.delivery-machine/identities.json"
+cd "$T/work/repo"; [ -d .delivery ] && fail "fixture must have no .delivery"
+OUT=$(HOME="$T/home" CLAUDE_CONFIG_DIR="$T/home/.claude-tsg" bash "$HERE/../scripts/session-start.sh" 2>&1); RC=$?
+[ $RC = 0 ] || fail "hook must stay fail-open (rc $RC): $OUT"
+echo "$OUT" | grep -q 'IDENTITY MISMATCH' || fail "hook skipped the check outside a Janus project: $OUT"
+echo "$OUT" | grep -q 'restart this session with CLAUDE_CONFIG_DIR=' || fail "remediation not restart-worded: $OUT"
 echo "PASS test_identity_check"

@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # SessionStart hook — inject handoff + machine status into new/compacted
-# sessions. Silent no-op outside a Janus project.
+# sessions. Outside a Janus project only the identity check runs; the rest is a silent no-op.
 set -uo pipefail
+# First, before the Janus gate: the wrong seat is worth saying in ANY mapped repo, and most of them
+# have no .delivery. Fail-open by design — it prints, it never aborts the hook.
+bash "$(dirname "$0")/identity-check.sh" || echo "Fix the identity above before committing. This session continues, commits will not be accepted by the operator."
 [ -d .delivery ] || exit 0
 rm -f .delivery/.touched   # gate-check.sh counts files touched THIS session, not ever
 PROJ=$(python3 -c "import json;print(json.load(open('.delivery/config.json'))['project'])" 2>/dev/null || basename "$PWD")
 echo "JANUS PROJECT ($PROJ). Operate per the /dm skill: approval gates, agents for real work, services in tmux only, proof before done."
-bash "$(dirname "$0")/identity-check.sh" || echo "Fix the identity above before committing. This session continues, commits will not be accepted by the operator."
 if tmux has-session -t "dm-$PROJ" 2>/dev/null; then
   echo "Machine RUNNING — windows: $(tmux list-windows -t "dm-$PROJ" -F '#W' | tr '\n' ' ')"
 else
