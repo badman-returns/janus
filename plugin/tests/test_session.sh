@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # dm-session.sh: names windows claude, claude-2…; passes args; exports CLAUDE_CONFIG_DIR from config.
 set -u
+export DM_BRIDGE=0   # this test drives dm-session.sh on the REAL tmux server; keep bridge-link.sh
+                     # out of it, or the suite links the operator's live claude windows into
+                     # a `bridge` session. test_bridge_link.sh covers the real behaviour on its
+                     # own isolated server.
 HERE="$(cd "$(dirname "$0")" && pwd)"; S="$HERE/../scripts/dm-session.sh"
 T=$(mktemp -d); trap 'rm -rf "$T"; tmux kill-session -t dm-sesstest 2>/dev/null' EXIT
 mkdir -p "$T/.delivery"; echo '{"project":"sesstest","services":{},"claude_config_dir":"~/.claude-fake"}' > "$T/.delivery/config.json"

@@ -5,7 +5,8 @@
 set -u
 HERE="$(cd "$(dirname "$0")" && pwd)"; S="$HERE/../scripts/dm-stop.sh"; BOOT="$HERE/../scripts/dm-boot.sh"
 J="$HERE/../scripts/janus.sh"
-T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+T=$(mktemp -d); SCRATCH="scratchbridge-$$"   # stands in for `bridge` / a view-* group member
+trap 'rm -rf "$T"; tmux kill-session -t "$SCRATCH" 2>/dev/null' EXIT
 fail(){ echo "FAIL test_dm_stop: $1"; exit 1; }
 PROJ="dmstoptest-$$"
 mkdir -p "$T/proj/.delivery/inbox"
@@ -56,14 +57,23 @@ row=$(DM_REGISTRY="$REG" bash "$J" --list) || fail "janus --list exit $?"
 render=$(DM_REGISTRY="$REG" bash "$J" < /dev/null) || fail "janus render exit $?"
 printf '%s' "$render" | grep -q "stopped" || fail "picker does not show the state: $render"
 
-# 6. a real session is actually killed (only where tmux exists)
+# 6. a real session is actually killed (only where tmux exists) — and so are its windows. A window
+#    linked into a second session (bridge-link.sh's `bridge`, or a `view-*` group member from
+#    dm-attach.sh) outlives `kill-session` on its own machine, so stop has to kill windows by id
+#    first or the machine reads as stopped while its claude keeps running somewhere else.
 if command -v tmux >/dev/null 2>&1; then
   tmux new-session -d -s "dm-$PROJ" -n control 2>/dev/null || fail "could not create a test session"
   tmux new-window -t "dm-$PROJ" -n web
+  tmux new-window -t "dm-$PROJ" -n claude 'sleep 300'
+  WID=$(tmux list-windows -t "dm-$PROJ" -F '#{window_id} #W' | awk '$2=="claude"{print $1}')
+  tmux new-session -d -s "$SCRATCH" -n keep 'sleep 300' || fail "could not create $SCRATCH"
+  tmux link-window -d -s "dm-$PROJ:$WID" -t "$SCRATCH:" || fail "could not link $WID into $SCRATCH"
   out=$(DM_REGISTRY="$REG" bash "$S") || { tmux kill-session -t "dm-$PROJ" 2>/dev/null; fail "exit $? with a live session"; }
   printf '%s' "$out" | grep -q "^service   web stopped" || { tmux kill-session -t "dm-$PROJ" 2>/dev/null; fail "live service window not stopped: $out"; }
   printf '%s' "$out" | grep -q "^session   dm-$PROJ killed" || { tmux kill-session -t "dm-$PROJ" 2>/dev/null; fail "session not killed: $out"; }
   tmux has-session -t "dm-$PROJ" 2>/dev/null && { tmux kill-session -t "dm-$PROJ"; fail "session survived dm-stop.sh"; }
+  tmux list-windows -t "$SCRATCH" -F '#{window_id}' 2>/dev/null | grep -qx "$WID" \
+    && fail "claude window $WID outlived dm-stop.sh inside $SCRATCH — a stopped machine is still running"
 fi
 
 # 7. outside a Janus project it refuses rather than half-running

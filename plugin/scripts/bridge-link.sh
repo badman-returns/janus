@@ -4,7 +4,12 @@
 # the phone land in the machine's own session; Janus's window-name contract in dm-<project> is
 # untouched. Idempotent; safe to run after every orchestrator.sh and dm-session.sh.
 # Usage: bridge-link.sh        (TMUX_SOCK="-L name" for an isolated tmux server, tests only)
+#   DM_BRIDGE=0                switches the bridge off entirely. Any test that drives
+#                              dm-session.sh or orchestrator.sh against the real tmux server
+#                              exports it, so the suite never links the operator's own claude
+#                              windows into a `bridge` session behind their back.
 set -uo pipefail
+[ "${DM_BRIDGE:-}" = 0 ] && exit 0
 TM="tmux ${TMUX_SOCK:-}"
 REG="$HOME/.delivery-machine/registry.json"
 [ -s "$REG" ] || exit 0
