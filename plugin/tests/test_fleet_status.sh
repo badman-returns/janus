@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -u
+HERE="$(cd "$(dirname "$0")" && pwd)"; FS="$HERE/../scripts/fleet-status.sh"; FR="$HERE/../scripts/fleet-route.sh"; FG="$HERE/../scripts/fleet-gate.sh"
+T=$(mktemp -d); trap 'rm -rf "$T"' EXIT; fail(){ echo "FAIL test_fleet_status: $1"; exit 1; }
+mkdir -p "$T/home/.delivery-machine" "$T/a/.delivery/inbox" "$T/a/.delivery/checklist" "$T/a/.delivery/agents"
+echo "{\"a\":{\"dir\":\"$T/a\",\"session\":\"dm-a\",\"port\":1,\"ttyd_port\":2,\"started\":\"x\"}}" > "$T/home/.delivery-machine/registry.json"
+echo '{"ts":"2026-09-05T10:00:00Z","agent":"dm-builder","slice":"s1","status":"dispatched","note":"round 1"}' > "$T/a/.delivery/runs.jsonl"
+echo '{"slice":"s1","intent":"do it","gated":true,"approved_at":"2026-09-05T09:00:00Z","items":[{"text":"a","proof":"p","done":true,"ts":"x"},{"text":"b","proof":"q","done":false,"ts":null}]}' > "$T/a/.delivery/checklist/s1.json"
+printf 'GATE 2 — review proof for s1\n' > "$T/a/.delivery/inbox/gate-s1-proof.txt"
+echo '{"sid":"1","ts":"now"}' > "$T/a/.delivery/agents/1.json"
+OUT=$(HOME="$T/home" bash "$FS") || fail "status exited $?"
+echo "$OUT" | grep -q '^a · live · dm-builder dispatched s1 · gates:1 · checklist 1/2' || fail "status line: $OUT"
+HOME="$T/home" FEED_CHAT_ID=42 bash "$FR" a "please pause slice s1" || fail "route exited $?"
+N=$(ls "$T/a/.delivery/inbox" | grep -c '^note-[0-9]*-tg-please-pause-slice-s1.txt$'); [ "$N" = 1 ] || fail "note not written: $(ls "$T/a/.delivery/inbox")"
+head -1 "$T"/a/.delivery/inbox/note-*-tg-*.txt | grep -q '^from: telegram 42 20' || fail "note header: $(head -1 "$T"/a/.delivery/inbox/note-*-tg-*.txt)"
+HOME="$T/home" bash "$FG" a REJECT "badge text wrong" || fail "gate exited $?"
+[ ! -e "$T/a/.delivery/inbox/gate-s1-proof.txt" ] || fail "gate file not removed"
+R=$(ls "$T/a/.delivery/inbox" | grep '^reply-'); [ -n "$R" ] || fail "no reply file"
+head -1 "$T/a/.delivery/inbox/$R" | grep -qx 'RE: gate-s1-proof.txt' || fail "reply line 1: $(head -1 "$T/a/.delivery/inbox/$R")"
+sed -n 2p "$T/a/.delivery/inbox/$R" | grep -qx 'REJECT: badge text wrong' || fail "reply line 2"
+HOME="$T/home" bash "$FG" a APPROVE 2>/dev/null && fail "approve with no gate should fail"
+echo "PASS test_fleet_status"
