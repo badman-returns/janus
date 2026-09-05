@@ -225,13 +225,76 @@ setInterval(() => { for (const res of clients) res.write("data: tick\n\n"); }, 5
 
 const slug = s => (s || "note").toLowerCase().replace(/[^a-z0-9-]+/g, "-").slice(0, 40) || "note";
 
+// --- the front door (front-door plan, Task 6): every registered machine's files, for one page.
+const registry = () => { try { return JSON.parse(fs.readFileSync(REGISTRY, "utf8")); } catch { return {}; } };
+const machineDir = (project) => { const v = registry()[project]; if (!v || !/^[\w.-]+$/.test(project || "")) throw new Error("unknown machine"); return v.dir; };
+const proofDirOf = (dir) => { try { return JSON.parse(fs.readFileSync(path.join(dir, ".delivery", "config.json"), "utf8")).proof_dir || "proof"; } catch { return "proof"; } };
+const machineFiles = (dir) => {
+  const ib = path.join(dir, ".delivery", "inbox");
+  const items = listDir(ib).filter(f => !f.dir && /^(gate|ask)-/.test(f.name)).map(f => ({ name: f.name, body: (readIf(path.join(ib, f.name)) || "").slice(0, 4000), mtime: f.mtime }));
+  const runs = (readIf(path.join(dir, ".delivery", "runs.jsonl"), 20000) || "").trim().split("\n").filter(Boolean).slice(-5).map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  const rdir = path.join(dir, ".delivery", "replies");
+  const replies = listDir(rdir).filter(f => !f.dir).slice(0, 3).map(f => ({ name: f.name, body: (readIf(path.join(rdir, f.name)) || "").slice(0, 4000), mtime: f.mtime }));
+  const last = runs[runs.length - 1] || null;
+  let checklist = null;
+  if (last) { try { const c = JSON.parse(readIf(path.join(dir, ".delivery", "checklist", last.slice + ".json"))); checklist = { slice: c.slice, done: c.items.filter(i => i.done).length, total: c.items.length }; } catch {} }
+  const has = (f) => last && fs.existsSync(path.join(dir, proofDirOf(dir), last.slice, f)) ? `${last.slice}/${f}` : null;
+  return { items, runs, replies, last, checklist, video: has("proof.mp4"), review: has("review.html") };
+};
+const front = () => {
+  const rows = Object.entries(registry()).map(([k, v]) => {
+    let alive = false; try { alive = !!execSync(`tmux has-session -t '=${v.session}' 2>/dev/null && echo 1`, { timeout: 2000 }).toString().trim(); } catch {}
+    let seat = "personal"; try { if (/claude-alt/.test(JSON.parse(fs.readFileSync(path.join(v.dir, ".delivery", "config.json"), "utf8")).claude_config_dir || "")) seat = "office"; } catch {}
+    const m = machineFiles(v.dir);
+    // a card that needs him outranks everything, even a stopped machine
+    const state = m.items.length ? "waiting" : v.state === "paused" ? "paused" : !alive ? "stopped" : (m.last && !["done", "failed"].includes(m.last.status)) ? "building" : "idle";
+    return { project: k, ...v, alive, seat, state, ...m };
+  });
+  const rp = path.join(process.env.HOME, ".brain", "reports");
+  const reports = listDir(rp).filter(e => e.dir).map(e => ({ name: e.name, line: (readIf(path.join(rp, e.name, "latest.md"), 400) || "").split("\n")[0] }));
+  return { now: new Date().toISOString(), fleet: path.basename(PROJ_DIR), machines: rows, reports };
+};
+// a file with Range support, for the proof videos a <video> element scrubs
+const serveFile = (req, res, file, mime) => {
+  let st; try { st = fs.statSync(file); if (!st.isFile()) throw 0; } catch { res.writeHead(404); return res.end(); }
+  const r = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || "");
+  if (r && (r[1] || r[2])) {
+    const start = r[1] ? parseInt(r[1], 10) : Math.max(0, st.size - parseInt(r[2], 10));
+    const end = r[1] && r[2] ? Math.min(parseInt(r[2], 10), st.size - 1) : st.size - 1;
+    res.writeHead(206, { "content-type": mime, "content-range": `bytes ${start}-${end}/${st.size}`, "content-length": end - start + 1, "accept-ranges": "bytes" });
+    return fs.createReadStream(file, { start, end }).pipe(res);
+  }
+  res.writeHead(200, { "content-type": mime, "content-length": st.size, "accept-ranges": "bytes" });
+  fs.createReadStream(file).pipe(res);
+};
+const MIME = { ".mp4": "video/mp4", ".png": "image/png", ".jpg": "image/jpeg", ".gif": "image/gif", ".html": "text/html; charset=utf-8", ".md": "text/plain; charset=utf-8" };
+const readBody = (req, cap, cb) => { let b = ""; req.on("data", c => { b += c; if (b.length > cap) req.destroy(); }); req.on("end", () => cb(b)); };
+// the /api/inbox rules, for any machine: a reply supersedes the gate it answers and keeps its thread
+const writeInbox = (dir, kind, re, text) => {
+  const ib = path.join(dir, ".delivery", "inbox"); fs.mkdirSync(ib, { recursive: true }); const ts = Date.now();
+  const name = kind === "reply" ? `reply-${ts}-${slug(re)}.txt` : `note-${ts}-${slug(String(text).slice(0, 30))}.txt`;
+  fs.writeFileSync(path.join(ib, name), kind === "reply" ? `RE: ${re}\n${text}` : String(text));
+  if (kind === "reply" && re && !re.includes("/") && !re.includes("..")) {
+    const gate = re.startsWith("gate-") ? readIf(path.join(ib, re)) : null;
+    if (gate !== null) {
+      const tdir = path.join(dir, ".delivery", "threads"), t = new Date().toISOString(); fs.mkdirSync(tdir, { recursive: true });
+      fs.appendFileSync(path.join(tdir, re.replace(/\.txt$/, "") + ".md"), `## ${t} · gate\n\n${gate.trim()}\n\n## ${t} · reply\n\n${text}\n\n`);
+    }
+    try { fs.unlinkSync(path.join(ib, re)); } catch {}
+  }
+  return name;
+};
+// the same nudge, on every machine's .delivery — so the front page refetches when any of them moves.
+// It lives here, not beside the PROJ_DIR watch loop above, because registry() is declared here.
+for (const v of Object.values(registry())) { try { fs.watch(path.join(v.dir, ".delivery"), { recursive: true }, nudge); } catch {} }
+
 // --- static assets: the page's stylesheet, theme.json and ES modules. Two gates, both needed:
 // the url must name one of these three shapes, and the resolved path must still be inside
 // __dirname — so no traversal, and nothing else in this directory (server.js included) is served.
 const STATIC = { ".css": "text/css; charset=utf-8", ".js": "text/javascript; charset=utf-8",
                  ".json": "application/json; charset=utf-8" };
 const staticAsset = (url) => {
-  if (!/^\/(?:[\w-]+\.css|theme\.json|js\/[\w-]+(?:\/[\w-]+)?\.js)$/.test(url) || url.includes("..")) return null;
+  if (!/^\/(?:[\w-]+\.css|theme\.json|(?:js|vendor)\/[\w.-]+(?:\/[\w-]+)?\.js)$/.test(url) || url.includes("..")) return null;
   const file = path.normalize(path.join(__dirname, url));
   return file.startsWith(__dirname + path.sep) && STATIC[path.extname(file)] ? file : null;
 };
@@ -273,6 +336,29 @@ http.createServer((req, res) => {
         res.writeHead(400, { "content-type": "application/json" });
         res.end(JSON.stringify({ ok: false, error: String(e.message) }));
       }
+    });
+    return;
+  }
+  if (req.method === "POST" && (url === "/api/front/reply" || url === "/api/front/note")) {
+    readBody(req, 10000, body => {
+      try {
+        const { project, re, text } = JSON.parse(body);
+        const name = writeInbox(machineDir(project), url.endsWith("reply") ? "reply" : "note", re, text);
+        res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ ok: true, name }));
+      } catch (e) { res.writeHead(400, { "content-type": "application/json" }); res.end(JSON.stringify({ ok: false, error: String(e.message) })); }
+    });
+    return;
+  }
+  if (req.method === "POST" && url === "/api/front/open") {
+    readBody(req, 2000, body => {
+      try {
+        const { project, slice } = JSON.parse(body); const dir = machineDir(project);
+        const wt = sh(`git -C '${dir}' worktree list --porcelain`).split("\n\n")
+          .map(b => ({ dir: (b.match(/^worktree (.*)$/m) || [])[1], branch: (b.match(/^branch refs\/heads\/(.*)$/m) || [])[1] }))
+          .find(w => w.branch && slice && (w.branch === slice || w.branch.endsWith("/" + slice)));
+        spawn("code", ["-r", wt ? wt.dir : dir], { detached: true, stdio: "ignore" }).unref();
+        res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ ok: true, dir: wt ? wt.dir : dir }));
+      } catch (e) { res.writeHead(400); res.end(String(e.message)); }
     });
     return;
   }
@@ -374,12 +460,25 @@ http.createServer((req, res) => {
   if (url === "/" || url === "/fleet") {
     res.writeHead(200, { "content-type": "text/html" });
     res.end(fs.readFileSync(path.join(__dirname, url === "/" ? "index.html" : "fleet.html")));
+  } else if (url === "/api/front") {
+    res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify(front()));
+  } else if (url === "/api/front/proof") {
+    const qs = new URLSearchParams(req.url.split("?")[1] || "");
+    try {
+      const dir = machineDir(qs.get("project")); const base = path.resolve(dir, proofDirOf(dir));
+      const file = path.normalize(path.join(base, qs.get("file") || ""));
+      if (!file.startsWith(base + path.sep)) throw new Error("outside proof");
+      serveFile(req, res, file, MIME[path.extname(file).toLowerCase()] || "application/octet-stream");
+    } catch { res.writeHead(404); res.end(); }
+  } else if (url === "/front" || url === "/pill") {
+    let body; try { body = fs.readFileSync(path.join(__dirname, url.slice(1) + ".html")); } catch { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); res.end(body);
   } else if (url === "/api/fleet") {
     let reg = {};
     try { reg = JSON.parse(fs.readFileSync(REGISTRY, "utf8")); } catch {}
     const rows = Object.entries(reg).map(([k, v]) => {
       let alive = false, waiting = 0;
-      try { alive = !!execSync(`tmux has-session -t ${v.session} 2>/dev/null && echo 1`, { timeout: 2000 }).toString().trim(); } catch {}
+      try { alive = !!execSync(`tmux has-session -t '=${v.session}' 2>/dev/null && echo 1`, { timeout: 2000 }).toString().trim(); } catch {}
       waiting = waitingIn(v.dir);
       return { project: k, ...v, alive, waiting };
     });
@@ -397,11 +496,9 @@ http.createServer((req, res) => {
     const file = path.normalize(path.join(PROOF, url.slice("/proof/".length)));
     if (!file.startsWith(PROOF + path.sep)) { res.writeHead(403); return res.end(); }
     const ext = path.extname(file).toLowerCase();
-    const mime = { ".png": "image/png", ".jpg": "image/jpeg", ".gif": "image/gif", ".md": "text/plain" }[ext] || "application/octet-stream";
-    // read before the head goes out: after writeHead a missing file cannot 404, it throws
-    let bytes; try { bytes = fs.readFileSync(file); } catch { res.writeHead(404); return res.end(); }
-    res.writeHead(200, { "content-type": mime });
-    res.end(bytes);
+    // serveFile stats before the head goes out (a missing file cannot 404 once it is) and
+    // answers a Range, so the machine's own proof.mp4 scrubs in a <video> too
+    serveFile(req, res, file, MIME[ext] || "application/octet-stream");
   } else if (staticAsset(url)) {
     // the page's own stylesheet and ES modules, from this directory only. Tokens are
     // prepended to CSS here, so theme.json stays the single source and no page is ever
