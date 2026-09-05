@@ -18,6 +18,8 @@ done
 for v in af_heart am_michael bm_george; do
   bash "$HERE/tts.sh" "You asked whether the badge should read Recorded late. I checked the desk scheduling slice; two files changed and the tests pass. I recommend approving it." "$M/samples/kokoro-$v.wav" "$v" >/dev/null
 done
-bash "$HERE/tts.sh" "Janus is ready." /tmp/janus-ready.wav "${KOKORO_VOICE:-am_michael}" | grep -q fallback && { echo "install: Kokoro did not render; check espeak-ng and the model files" >&2; exit 1; }
+rm -f /tmp/janus-ready.wav
+rc=0; out=$(bash "$HERE/tts.sh" "Janus is ready." /tmp/janus-ready.wav "${KOKORO_VOICE:-am_michael}") || rc=$?
+[ "$rc" = 0 ] && [ -s /tmp/janus-ready.wav ] && [ "$out" != fallback ] || { echo "install: Kokoro did not render (rc=$rc out=${out:-none}); check espeak-ng and the model files" >&2; exit 1; }
 afplay /tmp/janus-ready.wav
 echo "voice: installed. models in $M; samples in $M/samples"
