@@ -23,6 +23,12 @@ if [ -s .delivery/HANDOFF.md ]; then
   echo "--- HANDOFF from previous context ---"
   cat .delivery/HANDOFF.md
 fi
+BRAIN_PTR="$HOME/.delivery-machine/brain"
+B=$(cat "$BRAIN_PTR" 2>/dev/null || true)   # empty with no pointer; a half-built brain stays silent
+if [ -f "$B/index.md" ] && [ -f "$B/wiki/method/METHOD.md" ]; then
+  echo "--- BRAIN index ($B/index.md) ---"; cat "$B/index.md"
+  echo "--- METHOD ---"; cat "$B/wiki/method/METHOD.md"
+fi
 PENDING=$(ls .delivery/inbox 2>/dev/null | wc -l | tr -d ' ')
 [ "$PENDING" != "0" ] && echo "INBOX: $PENDING pending item(s) in .delivery/inbox — process them first."
 
