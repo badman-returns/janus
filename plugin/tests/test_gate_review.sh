@@ -20,6 +20,7 @@ grep -q '</p><p>' proof/s/review.html || fail "the guide's blank line did not be
 grep -q 'd2h\|diff2html' proof/s/review.html || fail "diff not rendered"
 grep -q '^review: proof/s/review.html' .delivery/inbox/gate-s-proof.txt || fail "gate file does not name the review"
 grep -q '^pr:' .delivery/inbox/gate-s-proof.txt && fail "a PR line without gh"
+[ -e .delivery/outbox ] && fail "no proof.mp4, yet the gate dropped something in the outbox"
 
 # gh and a remote: a draft PR with the guide as its body, and the url in the gate file
 git init -q --bare "$T/remote.git" && git remote add origin "$T/remote.git"
@@ -35,4 +36,11 @@ grep -q '^pr: https://example.test/pr/1' .delivery/inbox/gate-s-proof.txt || fai
 grep -qx -- '--draft' gh.args || fail "gh was not called with --draft"
 grep -qx -- '--body-file' gh.args || fail "gh was not called with --body-file"
 grep -qx -- 'proof/s/review.md' gh.args || fail "the guide is not the PR body"
+
+# with a video beside the proof, the gate drops it in the outbox with a caption naming slice and branch
+: > proof/s/proof.mp4
+GH_BIN="$T/bin/gh" bash "$GATE" s >/dev/null 2>&1 || fail "dm-gate with a video exited $?"
+ls .delivery/outbox/*-s-proof.mp4 >/dev/null 2>&1 || fail "proof.mp4 was not dropped in the outbox"
+C=$(cat .delivery/outbox/*-s-proof.mp4.caption 2>/dev/null) || fail "no caption beside the video"
+case "$C" in "GATE 2"*" s "*"/gate approve"*) : ;; *) fail "caption is not the gate line: $C" ;; esac
 echo "PASS test_gate_review"

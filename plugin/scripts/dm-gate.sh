@@ -54,4 +54,11 @@ if command -v "$GH" >/dev/null 2>&1 && git remote get-url origin >/dev/null 2>&1
   [ -n "$URL" ] && echo "pr: $URL" >> ".delivery/inbox/gate-$SLICE-proof.txt"
 fi
 
+# the watchable proof: the video goes out with the gate, captioned. No video is not a failure.
+if [ -f "$PROOF/$SLICE/proof.mp4" ]; then
+  mkdir -p .delivery/outbox; MS=$(python3 -c "import time;print(int(time.time()*1000))")
+  cp "$PROOF/$SLICE/proof.mp4" ".delivery/outbox/$MS-$SLICE-proof.mp4"
+  printf 'GATE 2 · %s · %s · watch, then in fleet: /gate approve <machine> or /gate reject <machine> <why>' "$SLICE" "$BRANCH" > ".delivery/outbox/$MS-$SLICE-proof.mp4.caption"
+fi
+
 bash "$HERE/notify.sh" "GATE 2: $SLICE"
