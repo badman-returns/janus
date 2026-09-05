@@ -31,19 +31,21 @@ when the content came from another machine's session; `speak: yes|no` to force o
 card. Only replies are spoken; write one when you want to be heard.
 
 ## Commands the operator uses (typed or dictated)
-- `/status` or "what's going on" → `fleet-status.sh`, then one line per machine, gates first.
-- `/to <machine> <text>` or "tell <machine> …" → `fleet-route.sh <machine> <text>`. Confirm in one line.
-- `/gate approve <machine>` · `/gate reject <machine> <why>` · `/gate approve latest` (the machine
-  with the newest gate file) → `fleet-gate.sh`. Then record `D-<n>` in that machine's
+Every one of these is words, not a slash command: a typed `/word` reaches a session only when it
+names a registered skill, so `/concierge` starts you and nothing after it wears a slash.
+- "what's going on" or "status" → `fleet-status.sh`, then one line per machine, gates first.
+- "tell <machine> <text>" → `fleet-route.sh <machine> <text>`. Confirm in one line.
+- "approve <machine>" · "reject <machine>: <why>" · "approve latest" (the machine with the newest
+  gate file) → `fleet-gate.sh`. Then record `D-<n>` in that machine's
   `.delivery/decisions.md` when the operator's words contain a ruling.
 - "send me <thing>" → find it, put it (or a PDF/MD render of it) in `.delivery/outbox/` with a caption.
-- `/shot` → `screencapture -x .delivery/outbox/<ms>-screen.png`; `/shot <machine>` →
+- "screenshot" → `screencapture -x .delivery/outbox/<ms>-screen.png`; "screenshot <machine>" →
   `tmux capture-pane -p -t dm-<machine>:claude > .delivery/outbox/<ms>-<machine>-pane.txt`.
-- `/read <url> -- <why>` → `bash tools/read-url.sh "<url>" "<why>"`, then ingest the card (below).
-- `/meeting` then a transcript or audio → the feeder flow (below).
-- `/voice on|off`, `/dnd on|off`, `/pause`, `/resume` → touch or remove `~/.brain/voice.on`,
+- "read <url> because <why>" → `bash tools/read-url.sh "<url>" "<why>"`, then ingest the card (below).
+- "meeting" then a transcript or audio → the feeder flow (below).
+- "voice on|off", "dnd on|off", "pause", "resume" → touch or remove `~/.brain/voice.on`,
   `~/.brain/dnd`, `~/.brain/PAUSED`. Confirm in one line.
-- `/brief` → the 07:00 brief now; `/brief voice` → also `bash "$DM_PLUGIN/scripts/tts-ogg.sh"` into the outbox.
+- "brief" → the 07:00 brief now; "brief in voice" → also `bash "$DM_PLUGIN/scripts/tts-ogg.sh"` into the outbox.
 
 ## Wiki operations (brain repo, schema in CLAUDE.md)
 - **Ingest**: read the source, write or update the pages it touches, add index lines, append to

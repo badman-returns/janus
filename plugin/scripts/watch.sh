@@ -6,6 +6,7 @@
 # Usage: watch.sh   (from project root; loops forever)
 set -uo pipefail
 [ -d .delivery ] || { echo "not a dm project"; exit 1; }
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PROJ=$(python3 -c "import json;print(json.load(open('.delivery/config.json'))['project'])")
 LOCK=".delivery/.pickup.lock"
 POLL=${DM_WATCH_POLL:-20}
@@ -29,7 +30,7 @@ while true; do
       NUDGE=".delivery/.nudge"; NOW=$(date +%s); LAST=$(cat "$NUDGE" 2>/dev/null || echo 0)
       if [ $((NOW - LAST)) -ge 120 ]; then
         echo "$(date '+%H:%M:%S') — $PENDING inbox item(s); handing them to live session '$LIVEWIN'"
-        tmux send-keys -t "dm-$PROJ:$LIVEWIN" "/dm process the pending items in .delivery/inbox" && sleep 1 && tmux send-keys -t "dm-$PROJ:$LIVEWIN" Enter
+        tmux send-keys -t "dm-$PROJ:$LIVEWIN" "$(bash "$HERE/pickup-line.sh")" && sleep 1 && tmux send-keys -t "dm-$PROJ:$LIVEWIN" Enter
         echo "$NOW" > "$NUDGE"
       fi
     # no session anywhere → headless pickup; a session outside the machine (heartbeat) is left alone
@@ -39,8 +40,8 @@ while true; do
       # snapshot BEFORE dispatch so notes arriving mid-run are not swallowed
       HANDLING=$(ls .delivery/inbox/ 2>/dev/null | grep -E '^(note|reply)-' || true)
       if command -v claude >/dev/null 2>&1; then
-        claude -p "/dm process the pending items in .delivery/inbox and reply, then stop" >> .delivery/pickup.log 2>&1 || true
-        # /dm deletes what it answers; anything still on disk was NOT consumed
+        claude -p "$(bash "$HERE/pickup-line.sh") and reply, then stop" >> .delivery/pickup.log 2>&1 || true
+        # the pickup skill deletes what it answers; anything still on disk was NOT consumed
         # (crashed or errored run) and would be re-dispatched forever — park it
         # and say so, because a silent drop is worse than a loud one
         mkdir -p .delivery/inbox/handled
