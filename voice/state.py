@@ -28,8 +28,13 @@ class Machine:
             self.flags[a['name']] = a['value']
             if self.muted() and self.state in ('idle', 'waiting'): self._go('muted', out)
             if not self.muted() and self.state == 'muted': self._go('idle', out)
-        elif ev == 'offline': self._go('offline', out)
-        elif ev == 'online': self._go('idle', out)
+        elif ev == 'offline':                                             # the cursor goes with the connection
+            if self.state == 'speaking': out.append(('pause_playback',))
+            if self.state == 'listening': out.append(('close_mic',))
+            self.current = None; self.paused = None; self.pending_note = None; self.queue = []
+            self._go('offline', out)
+        elif ev == 'online':
+            if self.state == 'offline': self._go(self._rest(), out)         # a repeat is not a reason to drop the cursor
         elif ev in ('wake', 'key'):
             if self.state == 'offline': return out
             if ev == 'wake' and self.muted(): return out                  # the name is off under dnd / meeting
@@ -53,7 +58,9 @@ class Machine:
         elif ev == 'typed':
             stem = a.get('stem') or f"note-{int(self.now()*1000)}-typed"
             self.pending_note = stem; self.solicited = bool(a.get('voice'))
-            out.append(('write_note', stem, a['text'], None, None)); self._go('thinking', out, note=stem)
+            out.append(('write_note', stem, a['text'], None, None))
+            if self.state not in ('speaking', 'listening'):                   # typing interrupts nothing in flight
+                self._go('thinking', out, note=stem)
         elif ev == 'reply':
             rid, sents, speak = a['stem'], a['sentences'], a.get('speak')
             matches = (rid == self.pending_note)
@@ -71,7 +78,7 @@ class Machine:
                 else:
                     self.current = [rid, sents, 0]; self.about = a.get('needs')
                     out.append(('speak', rid, 0)); self._go('speaking', out, reply=rid)
-            elif matches:
+            elif matches and self.state != 'speaking':                        # settling now would strand the cursor
                 q = a.get('needs') or (sents and sents[-1].endswith('?'))
                 self._go('waiting' if q else self._rest(), out, about=a.get('needs'))
         elif ev == 'sentence_done':
@@ -136,6 +143,35 @@ def selftest():
     m.feed('sentence_done')                                                   # 'Two.' is playing
     o = m.feed('sentence_done'); assert ('speak', 'q3', 0) in o and m.state == 'speaking'   # the queue drains
     m.feed('sentence_done'); assert m.state == 'idle'
+    m.feed('flag', name='voice_on', value=True)                               # so the typed answer is spoken
+    m.feed('key'); m.feed('speech_end', text='read it out', stem='A')
+    m.feed('reply', stem='A', sentences=['A1.', 'A2.', 'A3.']); assert m.state == 'speaking'
+    o = m.feed('typed', text='status', stem='t9')                              # typing interrupts nothing in flight
+    assert m.state == 'speaking' and not [x for x in o if x[0] == 'state'] and m.current[0] == 'A'
+    o = m.feed('reply', stem='t9', sentences=['Quiet.'])
+    assert m.state == 'speaking' and not [x for x in o if x[0] == 'speak']     # queued behind A
+    m.feed('sentence_done'); m.feed('sentence_done')                           # A2 and A3 still play
+    o = m.feed('sentence_done'); assert ('speak', 't9', 0) in o and m.state == 'speaking'
+    m.feed('sentence_done'); assert m.state == 'idle'
+    m.feed('flag', name='voice_on', value=False)
+    m.feed('key'); m.feed('speech_end', text='read it out', stem='B')
+    m.feed('reply', stem='B', sentences=['B1.', 'B2.']); assert m.state == 'speaking'
+    m.feed('typed', text='status', stem='t10')                                 # this one is answered in writing
+    o = m.feed('reply', stem='t10', sentences=['Written.'])
+    assert m.state == 'speaking' and o[0][4] is False and not [x for x in o if x[0] == 'state']
+    o = m.feed('sentence_done'); assert ('speak', 'B', 1) in o                 # B2 was not dropped
+    m.feed('sentence_done'); assert m.state == 'idle'
+    m.feed('key'); m.feed('speech_end', text='read it out', stem='C')
+    m.feed('reply', stem='C', sentences=['C1.', 'C2.']); assert m.state == 'speaking'
+    o = m.feed('offline'); assert ('pause_playback',) in o and m.state == 'offline' and m.current is None
+    m.feed('online'); assert m.state == 'idle'
+    assert m.feed('sentence_done') == []                                       # the cursor went with the connection
+    m.feed('key'); o = m.feed('offline'); assert ('close_mic',) in o and m.state == 'offline'
+    m.feed('online'); assert m.state == 'idle'
+    assert m.feed('online') == [] and m.state == 'idle'                        # a repeat changes nothing
+    m.feed('flag', name='dnd', value=True); m.feed('offline'); m.feed('online')
+    assert m.state == 'muted'                                                  # it comes back to rest, not to idle
+    m.feed('flag', name='dnd', value=False); assert m.state == 'idle'
     print('PASS state selftest')
 
 if __name__ == '__main__':
