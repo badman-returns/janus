@@ -30,7 +30,9 @@ function onEvent(e) {
     youEl.textContent = e.text; youEl.classList.toggle("partial", !e.final); if (e.final) youOpen = false; lastKind = "you";
   } else if (e.t === "janus") {
     if (PILL) { if (e.text) $("#pilltext").textContent = e.text; return; }
-    if (e.sentences && !e.spoken) { const d = bubble("it"); d.textContent = e.sentences.join(" "); if (e.via) d.insertAdjacentHTML("beforeend", ` <span class="seat">from ${esc(e.via)}${/alt|shop|landing|web-app/i.test(e.via) ? ", office seat" : ""}</span>`); lastKind = "janus"; return; }
+    // the seat is the machine's, not the name's: /api/front derives it from claude_config_dir.
+    // No mark before the fleet has loaded, and none for a machine that is not registered.
+    if (e.sentences && !e.spoken) { const d = bubble("it"); d.textContent = e.sentences.join(" "); if (e.via) d.insertAdjacentHTML("beforeend", ` <span class="seat">from ${esc(e.via)}${DATA?.machines.find(m => m.project === e.via)?.seat === "office" ? ", office seat" : ""}</span>`); lastKind = "janus"; return; }
     if (e.sentences) return;                              // spoken replies arrive sentence by sentence below
     if (e.bridge) { const d = bubble("it"); d.textContent = e.text; d.classList.add("bridge"); lastKind = "janus"; return; }
     if (!janusEl || lastKind !== "janus") { janusEl = bubble("it"); janusEl.dataset.reply = e.reply || ""; }
