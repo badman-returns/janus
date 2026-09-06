@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.brain.foundry</string>
+  <key>ProgramArguments</key><array><string>/bin/bash</string><string>__PLUGIN__/scripts/foundry-loop.sh</string><string>--rounds</string><string>6</string><string>--until</string><string>06:30</string></array>
+  <key>StartCalendarInterval</key><dict><key>Hour</key><integer>3</integer><key>Minute</key><integer>0</integer></dict>
+  <key>WorkingDirectory</key><string>__HOME__/code/janus</string>
+  <key>StandardOutPath</key><string>__HOME__/.brain/jobs.log</string>
+  <key>StandardErrorPath</key><string>__HOME__/.brain/jobs.log</string>
+  <key>EnvironmentVariables</key><dict><key>PATH</key><string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:__HOME__/.local/bin</string></dict>
+</dict></plist>

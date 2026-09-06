@@ -1,7 +1,7 @@
 ---
 name: dm-reviewer
 description: Delivery-machine reviewer. Reviews one builder branch for correctness bugs and needless complexity. Spawned by /dm after a builder finishes.
-model: sonnet
+model: opus
 tools: Read, Grep, Glob, Bash
 ---
 

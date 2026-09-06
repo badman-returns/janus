@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Install (or --remove) the scheduled brain jobs as launchd agents: the 07:00 brief, the 02:00 miner,
-# the Sunday 08:00 wiki lint. Every job sources job-guard.sh first, so `touch ~/.brain/PAUSED` stops
-# all of them at once and `rm` starts them again — the kill switch is a file, not a launchctl dance.
-# Usage: install-jobs.sh [--remove] [brief|miner|lint ...]     (no names = all three)
+# the Sunday 08:00 wiki lint, the 03:00 foundry loop. Every job sources job-guard.sh first, so
+# `touch ~/.brain/PAUSED` stops all of them at once and `rm` starts them again — the kill switch is
+# a file, not a launchctl dance.
+# Usage: install-jobs.sh [--remove] [brief|miner|lint|foundry ...]     (no names = all four)
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN="$(cd "$HERE/.." && pwd)"
@@ -10,7 +11,7 @@ U=$(id -u); DEST="$HOME/Library/LaunchAgents"
 REMOVE=""; [ "${1:-}" = "--remove" ] && { REMOVE=1; shift; }
 mkdir -p "$DEST" "$HOME/.brain"
 
-for j in ${*:-brief miner lint}; do
+for j in ${*:-brief miner lint foundry}; do
   L="com.brain.$j"; SRC="$PLUGIN/templates/launchd/$L.plist"; P="$DEST/$L.plist"
   [ -f "$SRC" ] || { echo "no such job: $j"; continue; }
   launchctl bootout "gui/$U/$L" 2>/dev/null
