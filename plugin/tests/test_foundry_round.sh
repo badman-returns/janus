@@ -49,6 +49,11 @@ story(){ # $1 = the repo's default branch name
   sed -n 2p foundry/log.md | grep -q "round 2 | reverted | foundry/$D-2 | eval failed" || fail "[$1] line 2: $(cat foundry/log.md)"
 
   rm -f "$COUNT"; run "$TOP/wt" --rounds 2            # a second night appends, never truncates
+  # same day, same round number: the kept branch of the first night is still there, so the add fails
+  # and is logged as such; the branch is left alone (never deleted by a round that did not make it)
+  grep -q "round 1 | reverted | foundry/$D-1 | worktree add failed: .*already exists" "$T/foundry/log.md" \
+    || fail "a colliding branch name was not logged as a failed add: $(cat "$T/foundry/log.md")"
+  git rev-parse -q --verify "refs/heads/foundry/$D-1" >/dev/null || fail "the first night's kept branch was deleted by the collision"
   [ "$rc" = 0 ] || fail "[$1] second run exited $rc: $(cat "$TOP/out")"
   [ "$(wc -l < foundry/log.md | tr -d ' ')" = 4 ] || fail "[$1] log is not four lines: $(cat foundry/log.md)"
   [ "$(git status --porcelain)" = "$ST" ] || fail "[$1] status changed on the second run"
@@ -91,4 +96,15 @@ grep -q "usage:" "$TOP/out" || fail "no usage line: $(cat "$TOP/out")"
 rc=0; bash "$FL" --nonsense > "$TOP/out" 2>&1 || rc=$?
 [ "$rc" = 2 ] || fail "unknown flag exited $rc, want 2"
 
+# --until: a clock time. A malformed one is a usage error; one already behind means tomorrow, so the
+# rounds run (the stop itself is one epoch compare). Back in the main-branch repo of the story.
+cd "$TOP/main" || fail "story repo gone"
+FOUNDRY_WT="$TOP/wt-u" bash "$FL" --agent "$TOP/agent.sh" --eval true --until 6pm > "$TOP/out" 2>&1; [ $? = 2 ] || fail "--until 6pm did not exit 2: $(cat "$TOP/out")"
+PAST=$(python3 -c "import datetime as d;print((d.datetime.now()-d.timedelta(minutes=5)).strftime('%H:%M'))")
+export COUNT="$TOP/count" PASSES=9; rm -f "$COUNT"; git branch -q -D "foundry/$D-1" 2>/dev/null   # the story's kept branch would collide
+FOUNDRY_WT="$TOP/wt-u" bash "$FL" --agent "$TOP/agent.sh" --eval "bash $TOP/eval.sh" --rounds 1 --until "$PAST" > "$TOP/out" 2>&1 || fail "--until $PAST (tomorrow) exited $?: $(cat "$TOP/out")"
+grep -q "round 1 | kept" "$TOP/out" || fail "--until behind the clock stopped the rounds: $(cat "$TOP/out")"
+# FOUNDRY_WT inside the main checkout is refused before anything is removed
+FOUNDRY_WT="$PWD" bash "$FL" --agent "$TOP/agent.sh" --eval true --rounds 1 > "$TOP/out" 2>&1; [ $? = 2 ] || fail "FOUNDRY_WT=main checkout was not refused"
+[ -f f ] || fail "the checkout was damaged by a bad FOUNDRY_WT"
 echo "PASS test_foundry_round"
