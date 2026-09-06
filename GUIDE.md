@@ -86,15 +86,16 @@ it gets no tile, and its gate answers reach it on its next Stop instead of insta
 Say the name — "hey Janus" — or tap ⌥Space, and the voice loop starts listening; nothing needs to
 be open or in front. Typing works the same way: the Talk box, in the app window or the front page
 in a browser, takes the same path as speech and is answered in writing unless the line ends "in
-voice." `/dnd` from the menu bar silences the name and anything unsolicited without stopping the
-machine; a turn you start yourself with the key is still answered aloud, because you asked for it.
+voice." "Do not disturb" in the menu bar silences the name and anything unsolicited without stopping
+the machine; a turn you start yourself with the key is still answered aloud, because you asked for it.
 
-The window is a Chrome app pinned to the fleet machine's front page — opened from the menu bar, by
-saying "show me," or by double-tapping the key — and closes like any other window. When it is
+The window is a Chrome app pinned to the fleet machine's front page — opened with "Show Janus" in
+the menu bar, or by double-clicking Janus.app — and closes like any other window. When it is
 hidden and the loop leaves idle, a small pill drops under the menu bar with the same orb and the
 line being heard or said, so you can see what is happening without bringing the window forward.
-The ring in the menu bar is that orb at 14 px: its motion and colour, and the words in the title
-bar, are "off," "listening," "thinking," "speaking" and "waiting on you" from across the room.
+The ring in the menu bar is that orb at 14 px: its motion and colour say the state from across the
+room. On the page the caption beside the orb says it in a word — "off," "listening," "thinking,"
+"speaking," "waiting on you" — and the title bar says the same thing in a sentence.
 
 Two things it handles quietly, worth knowing so silence does not read as a hang: a turn that opens
 and closes without you actually saying anything writes nothing and answers nothing, so a false
@@ -167,8 +168,8 @@ Answer a gate by hand: `printf 'RE: gate-x.txt\nAPPROVE\n' > .delivery/inbox/rep
 
 | ask | say or type, in the `fleet` topic or a machine's own |
 |---|---|
-| what is going on everywhere | `/status` |
-| a screenshot of one machine | `/shot <machine>` |
+| what is going on everywhere | `what's going on` (or `status`) |
+| a screenshot of one machine | `screenshot <machine>` |
 | a file the machine already has | `send me <file>` |
 
 A voice note works anywhere a typed line does — say it instead. The concierge answers from the

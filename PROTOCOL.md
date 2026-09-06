@@ -26,8 +26,8 @@ exactly as it did:
 | `gate` | `{"max_files":4,"guarded":["run-log.sh","proof-fresh.sh","hooks.json"]}` | `gate-check.sh` | when a task must stop and declare a checklist. `guarded` entries are globs, matched against the whole path, its basename, and `*/<glob>` |
 | `knowledge_paths` | `[".claude/knowledge/**","docs/decisions/**"]` | `knowledge-log.sh` | globs whose writes are worth recording. Absolute globs and `~` are allowed, which is how a write under a Claude config dir's `memory/` gets caught |
 | `foundry` | `true` | `foundry.sh` | `false` makes the Stop-hook skill foundry a no-op. Only an explicit `false` disables it — a missing key, a missing file or unparseable JSON all keep it on |
-| `memory_dataset` | `"fleet"` | `dm-session.sh` | the Cognee dataset every session opened inside this machine carries as `COGNEE_PLUGIN_DATASET`; defaults to `project`. Rooms are datasets one to one, so recall never crosses a room; a machine on the employer seat has its own |
-| `pickup_skill` | `"dm"` | `pickup-line.sh` (used by `watch.sh` and the voice loop) | which skill answers a machine's inbox when a nudge is typed in — `concierge` on the fleet machine, `dm` everywhere else. A typed `/word` only ever reaches a session when it names a registered skill |
+| `memory_dataset` | `"<project>"` | `dm-session.sh` | the Cognee dataset every session opened inside this machine carries as `COGNEE_PLUGIN_DATASET`; defaults to `project`. Rooms are datasets one to one, so recall never crosses a room; a machine on the employer seat has its own |
+| `pickup_skill` | `"dm"` | `pickup-line.sh` for `watch.sh`; the voice loop reads the key itself and types the same line | which skill answers a machine's inbox when a nudge is typed in — `concierge` on the fleet machine, `dm` everywhere else. A typed `/word` only ever reaches a session when it names a registered skill |
 
 Optional: `"secrets": { "<ENV_VAR>": "<name>", ... }`. Each value names a macOS keychain generic
 password `dm:<project>:<name>` whose password is the base64 of the secret (`security add-generic-password
@@ -199,6 +199,7 @@ Outside any one project, read by the concierge, the voice loop, the desk speaker
 | `meeting` | the same silence as `dnd`, set by the operator around a call |
 | `voice-queue/<ms>.txt` | one file per queued utterance for the desk speaker (`voice-say.sh`), oldest first, deleted once spoken |
 | `jobs.log` | one line per scheduled job's run, success or failure |
+| `reports/<employee>/latest.md` | written by an employee (its own spec) after each run; the front page's employees row shows the first line of each, empty text until a report exists |
 | `foundry/wt` | the foundry loop's own worktree for the round in progress, rebuilt fresh from the default branch every time; the operator's own checkout is never touched |
 
 ## `foundry/` — the nightly loop's own files (`dm-janus` only)
