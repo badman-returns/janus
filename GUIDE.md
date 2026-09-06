@@ -45,7 +45,11 @@ not live at the machine root), and the `services` map whenever a new service app
 
 ## Every session — start
 
-Three doors into the same room; pick whichever is nearest.
+Five doors into the same room; pick whichever is nearest.
+
+**From the desk:** say "hey Janus" or tap ⌥Space — no window has to be open or in front. Typing in
+the Talk box does the same thing in writing. The full picture, including what the ring means and
+what to do if it looks off, is under "From the desk" below.
 
 **From anywhere — you don't remember which project, or don't want to `cd`:**
 
@@ -71,8 +75,40 @@ mission --resume <id>       # same, resuming a session
 **+ Session**, click into the tile, type `/dm`. From then on the terminal is optional — the tile *is*
 the session.
 
+**From the phone:** open the Telegram chat. `fleet` topic for anything; a machine's topic to go
+inside it; `feed` to watch. Voice notes work. `/gate approve <machine>` answers a gate.
+
 A session started with plain `claude` outside tmux still works; the machine tells it so at start,
 it gets no tile, and its gate answers reach it on its next Stop instead of instantly.
+
+## From the desk
+
+Say the name — "hey Janus" — or tap ⌥Space, and the voice loop starts listening; nothing needs to
+be open or in front. Typing works the same way: the Talk box, in the app window or the front page
+in a browser, takes the same path as speech and is answered in writing unless the line ends "in
+voice." `/dnd` from the menu bar silences the name and anything unsolicited without stopping the
+machine; a turn you start yourself with the key is still answered aloud, because you asked for it.
+
+The window is a Chrome app pinned to the fleet machine's front page — opened from the menu bar, by
+saying "show me," or by double-tapping the key — and closes like any other window. When it is
+hidden and the loop leaves idle, a small pill drops under the menu bar with the same orb and the
+line being heard or said, so you can see what is happening without bringing the window forward.
+The ring in the menu bar is that orb at 14 px: its motion and colour, and the words in the title
+bar, are "off," "listening," "thinking," "speaking" and "waiting on you" from across the room.
+
+Two things it handles quietly, worth knowing so silence does not read as a hang: a turn that opens
+and closes without you actually saying anything writes nothing and answers nothing, so a false
+"hey Janus" costs you nothing. And when the loop or the watcher types a pickup line into a
+machine's own session to make it answer its inbox, that line never rides on a line you left
+half-typed in that window's box — if a nudge shows as held, clear or send the draft there and it
+goes through on the next pass.
+
+If the menu bar says the loop is off, or nothing answers the name: `tmux capture-pane -p -t
+dm-fleet:voice` shows what the service window is actually doing (a crash, a missing model, a dead
+microphone); it is a service window like any other and comes back with `dm-boot.sh`. If the room
+self-test refuses with the wrong output device, look for AirPods: they can steal the Mac's default
+output, and the microphone cannot hear the name over a room routed to headphones — hold the
+built-in speakers.
 
 ## Every session — what you do
 
@@ -108,6 +144,9 @@ it gets no tile, and its gate answers reach it on its next Stop instead of insta
   If a service will not bind: `lsof -nP -iTCP:<port> -sTCP:LISTEN` and check the start time.
 - **Stop every machine**: `tmux kill-server` — same caveat, no handoffs. `dm-boot.sh` restores the
   ones not marked stopped.
+- **From the phone**: `/pause` stops the scheduled jobs only — the brief, the miner, the foundry —
+  while gates and replies keep flowing; `/voice off` and `/dnd on` quiet the loop and the desk
+  speaker the same way the menu bar does.
 
 ## Reading the state without the cockpit
 
@@ -123,6 +162,17 @@ it gets no tile, and its gate answers reach it on its next Stop instead of insta
 
 Answer a gate by hand: `printf 'RE: gate-x.txt\nAPPROVE\n' > .delivery/inbox/reply-$(date +%s)-gate-x-txt.txt`
 (then delete the gate file — the cockpit does both in one click).
+
+## Reading the state from the phone
+
+| ask | say or type, in the `fleet` topic or a machine's own |
+|---|---|
+| what is going on everywhere | `/status` |
+| a screenshot of one machine | `/shot <machine>` |
+| a file the machine already has | `send me <file>` |
+
+A voice note works anywhere a typed line does — say it instead. The concierge answers from the
+same files this guide describes, never from memory of an earlier turn.
 
 ## The rules the machine enforces on itself
 
@@ -156,6 +206,13 @@ Answer a gate by hand: `printf 'RE: gate-x.txt\nAPPROVE\n' > .delivery/inbox/rep
   (`dm-prune.sh`, branches kept); services and `dm-run.sh` commands receive keychain secrets declared in
   `config.json` `secrets` (`secrets-env.sh`); the foundry drafts a skill candidate when the same agent
   fails the same slice three times or the same note prefix repeats.
+
+## Tests
+
+`bash plugin/tests/run.sh` runs the whole suite. It cannot run two copies at once: a handful of
+tests bind fixed ports (5595–5598) and fixed tmux session names to drive a real server or a real
+window, so a second run started while one is already going fails those tests on the collision, not
+on anything it changed.
 
 ## Where things live
 

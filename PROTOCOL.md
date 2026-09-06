@@ -14,7 +14,9 @@ All paths are relative to the project root. Timestamps are ISO-8601 UTC unless n
   "claude_config_dir": "~/.claude-x" | null, "ntfy_topic": "<topic>" | null }
 ```
 `project` names the tmux session `dm-<project>`. `services` become windows. `claude_config_dir`
-is exported as `CLAUDE_CONFIG_DIR` for every Claude the machine starts.
+is exported as `CLAUDE_CONFIG_DIR` for every Claude the machine starts, and is also the machine's
+seat: `office` when it resolves to `~/.claude-alt`, `personal` otherwise (`fleet-status.sh` prints
+which).
 
 Three more optional keys. All are defaulted, so an existing `config.json` keeps behaving
 exactly as it did:
@@ -25,6 +27,7 @@ exactly as it did:
 | `knowledge_paths` | `[".claude/knowledge/**","docs/decisions/**"]` | `knowledge-log.sh` | globs whose writes are worth recording. Absolute globs and `~` are allowed, which is how a write under a Claude config dir's `memory/` gets caught |
 | `foundry` | `true` | `foundry.sh` | `false` makes the Stop-hook skill foundry a no-op. Only an explicit `false` disables it — a missing key, a missing file or unparseable JSON all keep it on |
 | `memory_dataset` | `"fleet"` | `dm-session.sh` | the Cognee dataset every session opened inside this machine carries as `COGNEE_PLUGIN_DATASET`; defaults to `project`. Rooms are datasets one to one, so recall never crosses a room; a machine on the employer seat has its own |
+| `pickup_skill` | `"dm"` | `pickup-line.sh` (used by `watch.sh` and the voice loop) | which skill answers a machine's inbox when a nudge is typed in — `concierge` on the fleet machine, `dm` everywhere else. A typed `/word` only ever reaches a session when it names a registered skill |
 
 Optional: `"secrets": { "<ENV_VAR>": "<name>", ... }`. Each value names a macOS keychain generic
 password `dm:<project>:<name>` whose password is the base64 of the secret (`security add-generic-password
@@ -32,6 +35,16 @@ password `dm:<project>:<name>` whose password is the base64 of the secret (`secu
 window and every `dm-run.sh` command is prefixed with `eval "$(bash <plugin>/scripts/secrets-env.sh)"`,
 which exports each entry; a missing item is a warning on stderr, never a failure. Values are never
 written to any file.
+
+The fleet machine's config carries one more optional key, `voice`, read by the voice loop
+(`voice/loop.py`) and the shell (`voice/shell.py`): `{ mic, wake_model, wake_phrase, kokoro_voice,
+hotkey, partials, port, vad, vad_rms, echo_margin, wake_settle, wake_threshold_speaking,
+min_speech, think_timeout }`. Every key is defaulted — a missing key, or no `voice` object at all,
+starts the loop on the built-in microphone and the stand-in wake word. Defaults: `mic` `"1"`,
+`wake_model` `"hey_jarvis"`, `wake_phrase` `"hey jarvis"`, `kokoro_voice` `"am_michael"`, `hotkey`
+`"alt+space"`, `partials` `true`, `port` `8790`, `vad` `"silero"`, `vad_rms` `0.015`, `echo_margin`
+`1.8`, `wake_settle` `1.5s`, `wake_threshold_speaking` `0.8`, `min_speech` `0.4s`, `think_timeout`
+`120s`.
 
 ## `.delivery/inbox/` — the only write path from operator to machine
 
@@ -41,6 +54,7 @@ written to any file.
 | `ask-<ms>-<slug>.txt` | `ask.sh` hook | JSON `{"kind":"ask"\|"permission","title":…,"questions":[{"question":…,"options":[…],"multi":bool}]}` | operator |
 | `reply-<ms>-<slug(name)>.txt` | operator | line 1 `RE: <gate or ask filename>`, rest = answer (`APPROVE`, `REJECT: note`, option label, `ALLOW`, `DENY: note`) | orchestrator (gates), `ask.sh` (asks) — the consumer deletes it |
 | `note-<ms>-<slug>.txt` | operator | free text, treated as a typed message | orchestrator |
+| `note-<ms>-voice-<slug>.txt`, `note-<ms>-tg-<slug>.txt`, or any note carrying a `from:` first line | the voice loop (`from: voice <iso>` spoken, `from: typed <iso>` the Talk box), `fleet-route.sh` (`from: telegram <chat> <iso>`), the loop relaying another machine's answer (`from: relay <machine> <iso>`) | optional second line `interrupted: <what was being said>`, then a blank line, then the text | orchestrator — identical consumption to any note; the header is provenance only |
 | `handled/` | watcher | items a headless run left behind | nobody; audit only |
 
 Writing a reply removes the gate/ask it answers. `<slug>` = lowercase, `[^a-z0-9-]`→`-`, 40 chars.
@@ -48,7 +62,15 @@ Writing a reply removes the gate/ask it answers. `<slug>` = lowercase, `[^a-z0-9
 
 ## `.delivery/replies/<stem>.md`
 Machine → operator prose. One markdown file per answer; the dashboard shows it as a card and
-`POST /api/replies/dismiss` deletes it.
+`POST /api/replies/dismiss` deletes it. The front page's `/api/front` reads the newest few the same
+way, and the voice loop watches this directory for the file named after the note it is waiting on.
+
+May start with header lines, each `key: value`, then a blank line: `via: <machine>` when the
+content came from another machine's session and is only relayed here; `speak: yes|no` forces or
+forbids the voice loop speaking it regardless of the standing policy; `needs: <machine> <gate-or-ask
+file>` means the reply ends in a question only the operator can answer, and puts the loop into its
+`waiting` state about that card. A reply with none of these headers is unchanged: prose, nothing
+more.
 
 ## `.delivery/runs.jsonl` — the ledger
 One JSON object per line, appended only:
@@ -144,10 +166,57 @@ A slice is done when `run-log.sh … done` accepted this and the operator has ap
 `dm-gate.sh <slice>` opened (Gate 2). `dm-gate.sh` applies the same freshness rule and writes no gate
 file when it fails.
 
+Where the slice has a UI, also `proof.mp4` (a narrated screen recording assembled by
+`proof-video.sh` from Playwright scenes) and `narration.md` (one sentence per scene); the same
+freshness rule applies, the video is evidence beside the README, not instead of it. `review.md` is
+the reviewer's three to five sentences on the order to read the diff; `review.html` is that guide
+rendered over the diff with diff2html, built by `dm-gate.sh` and gitignored — regenerate it, never
+commit it.
+
+## `.delivery/outbox/` — files for the operator
+
+Anything any agent, `dm-gate.sh`, or a scheduled job decides the operator should have and cannot
+hand over any other way: a screenshot, a proof video, a rendered document, a voice message.
+
+| path | written by | consumed by | rule |
+|---|---|---|---|
+| `.delivery/outbox/<ms>-<slug>.{png,jpg,mp4,pdf,md,txt,ogg}` (+ optional `.caption` sidecar) | any agent, `dm-gate.sh`, a job | `fleet-feed.py`, which sends it by type and moves it to `outbox/sent/` | never a secret, never production data; the caption is one line, sent as the file's caption |
+
+A file Telegram refuses outright lands in `outbox/sent/<name>.rejected` — visible, never retried; a
+transient failure is left where it is and retried on the next pass. `<ms>-<job>-failed.txt` is how
+a scheduled job (`brief.sh`, `miner.sh`) reports its own `claude` run failing, so a silent skipped
+morning is instead heard on the phone.
+
+## `~/.brain/` — the fleet machine's flags, queue and job log
+
+Outside any one project, read by the concierge, the voice loop, the desk speaker and the jobs.
+
+| path | means |
+|---|---|
+| `PAUSED` | every scheduled job checks this first (`job-guard.sh`) and exits 0 immediately when it exists; gates and replies keep flowing while paused, only the jobs stop |
+| `voice.on` | the desk speaker may speak unsolicited output; expires two hours after it is set |
+| `dnd` | silences the wake word and the desk speaker; a turn started with the hotkey is still answered aloud |
+| `meeting` | the same silence as `dnd`, set by the operator around a call |
+| `voice-queue/<ms>.txt` | one file per queued utterance for the desk speaker (`voice-say.sh`), oldest first, deleted once spoken |
+| `jobs.log` | one line per scheduled job's run, success or failure |
+| `foundry/wt` | the foundry loop's own worktree for the round in progress, rebuilt fresh from the default branch every time; the operator's own checkout is never touched |
+
+## `foundry/` — the nightly loop's own files (`dm-janus` only)
+
+`foundry/program.md` is what the operator edits to steer the loop; `foundry/log.md`, one line
+appended per round (keep or revert, and why), is gitignored — it is the loop's scratch, not part of
+the plugin, and is never committed.
+
 ## tmux
 Session `dm-<project>`. Window names are the contract: `control`, one per service, `mission`,
 `watch`, `ttyd`, `claude`, `claude-2`… Anything long-lived goes through `dm-run.sh <window> <cmd>`.
 Dashboard tiles are windows; `ttyd ?arg=<window>` attaches a private grouped view to one.
+
+`bridge` is a tmux session that holds linked copies of every machine's `claude*` window
+(`bridge-link.sh`). It is not a machine: it has no `.delivery/`, appears in no registry, and the
+only consumer is the Telegram bridge. On the fleet machine, `voice` and `shell` are service windows
+like any other — the voice loop and the menu-bar/hotkey/pill process — restarted the same way when
+`orchestrator.sh` finds them at their prompt.
 
 ## `~/.delivery-machine/registry.json`
 `{ "<project>": { "dir", "session", "port", "ttyd_port", "started", "state"?, "stopped"? } }`.
@@ -159,6 +228,34 @@ machine switched off on purpose: without it the registry claims a machine killed
 is still running, and `dm-boot.sh` restarts it at login as though it had crashed. `dm-boot.sh`
 skips a `stopped`/`paused` machine; `janus.sh` shows the state instead of guessing. Starting the
 machine again rewrites the whole entry (`orchestrator.sh`), which clears both fields.
+
+One entry, keyed `fleet`, is the fleet machine itself: the brain repo, registered exactly like any
+project. Nothing in this shape marks it different — only its window names do (`bridge`, `whisper`,
+`feed`, `voice`, `shell`).
+
+## Scripts worth knowing by name
+
+Every script below is under `plugin/scripts/`; each carries a rule worth stating once, here, rather
+than only in its own header comment.
+
+| script | does |
+|---|---|
+| `type-line.sh` | types one line into a Claude window and presses Enter, only when its input box is empty; exit 3 when the box holds a draft (clear or send it there first), exit 2 when there is no input line to type into |
+| `service-alive.sh` | tells a service window sitting at its tmux prompt (Ctrl-C'd, or crashed) from one actually running something; `orchestrator.sh` restarts whatever it finds at its prompt |
+| `machine-dir.sh` | resolves a registered machine's directory by name from the registry; the name is checked in the shell and passed to Python as an argument, never interpolated into source |
+| `fleet-status.sh` | one line per registered machine: seat, liveness, last ledger line, waiting gates, checklist progress |
+| `fleet-route.sh` | writes an operator note into a machine's inbox, tagged `from: telegram` |
+| `fleet-gate.sh` | answers a machine's newest gate or ask the way the dashboard does; `latest` answers the newest gate on any registered machine; verdicts are case-insensitive |
+| `inflight.sh` | JSON of every slice actually in flight, for the feeder to check a meeting's decisions against |
+| `bridge-link.sh` / `bridge-run.sh` | link every machine's `claude*` window into the `bridge` tmux session, and run ccgram bound to it; `DM_BRIDGE=0` switches the bridge off entirely (what the tests set) |
+| `fleet-feed.py` | send-only Telegram poster: ledger transitions, gate cards and outbox files, sent by type, retried on a transient failure, `.rejected` on a permanent one |
+| `proof-video.sh` | assembles `proof/<slice>/proof.mp4` from Playwright scenes and `narration.md`, narrated and burned in as captions |
+| `tts-ogg.sh` | renders text to an Opus `.ogg` voice file for a Telegram voice message |
+| `voice-say.sh` | the desk speaker: one queue, opt-in, machine-prefixed, yields to the voice loop while it is listening, thinking or speaking |
+| `brief.sh` / `miner.sh` / `lint-job.sh` / `install-jobs.sh` | the 07:00 brief, the 02:00 miner, the weekly wiki lint, and the launchd installer for all four jobs; the default set installed with no job named is `brief lint` — `miner` and `foundry` are named on purpose |
+| `foundry-loop.sh` | autoresearch for Janus: one change per round in its own worktree and branch, kept or reverted by the fixed eval, logged, never merged |
+| `identity-check.sh` | refuses a session whose git identity or Claude account does not match the mapped identity for this path, and prints the fix |
+| `job-guard.sh` | sourced by every scheduled job; exits 0 immediately when `~/.brain/PAUSED` exists |
 
 ## HTTP (mission control only)
 Nothing here is required by the agent layer — the cockpit is one reader of the files above and
@@ -178,6 +275,16 @@ routes, so a change here that is not written down is a change nobody can find.
 | `POST /api/service` | `{window, action:"start"\|"stop"\|"restart"}` |
 | `POST /api/session` | a new Claude inside the machine (`dm-session.sh`) |
 | `POST /api/machine` | `{action:"stop"\|"pause"}` — runs `dm-stop.sh` (with `--pause`) from the project root. Anything else is `400` |
+| `GET /api/front` | the front page's whole state: every registered machine's alive/seat/state, its newest gates and asks with their bodies, its last few ledger lines, its newest replies, its checklist progress, and each employee's latest report headline |
+| `POST /api/front/reply`, `POST /api/front/note` | `{project, re, text}` / `{project, text}` — same as `/api/inbox`, addressed at a machine other than the fleet machine itself |
+| `POST /api/front/open` | `{project, slice}` — `code -r` on that slice's worktree if one exists, else the machine's root |
+| `GET /api/front/proof?project=&file=` | serves a file under that machine's proof dir, with Range support (`206`, or `416` past the end) — what the front page's `<video>` scrubs |
+| `GET /front`, `GET /pill` | the one screen and the pill, served as static pages |
+
+The voice loop's own endpoint, `127.0.0.1:8790` on the fleet machine, is a separate process and not
+part of mission control — no route above reaches it. `GET /stream` (SSE; events `state`, `level`,
+`you`, `janus`, `false_alarm`), `GET /state`, `POST /say`, `POST /listen`, `POST /stop`. The front
+page reads it directly: the orb, the Talk column and the title bar have no other source.
 
 ### `/api/state`, field by field
 The names the cockpit's five bands read. `project`, `session`, `now`, `ttyd_port`, `account`,

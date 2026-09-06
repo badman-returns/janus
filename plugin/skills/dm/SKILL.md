@@ -160,7 +160,7 @@ deliberately. Where it is on, `foundry.sh` runs on every Stop and writes `.deliv
 
 ## Always-on pickup
 
-The orchestrator runs `watch.sh` in the `watch` window. When inbox items appear: if a `claude*` window exists in the machine, the watcher types `/dm process the pending items in .delivery/inbox` into it (at most once per two minutes — Claude queues the line if it is mid-turn), so a gate answered from the dashboard reaches the session that is waiting at that gate. If no session exists anywhere, it dispatches a headless `claude -p "/dm process inbox"` on the project's `claude_config_dir`. A session running outside the machine (heartbeat only) is left alone — it has no window to type into.
+The orchestrator runs `watch.sh` in the `watch` window. When inbox items appear: if a `claude*` window exists in the machine, the watcher types the pickup line into it (at most once per two minutes — Claude queues the line if it is mid-turn), so a gate answered from the dashboard reaches the session that is waiting at that gate. If no session exists anywhere, it dispatches a headless `claude -p "<pickup line> and reply, then stop"` on the project's `claude_config_dir`. The pickup line itself is printed by `pickup-line.sh`: it names the machine's `pickup_skill` — `dm` by default, `concierge` on the fleet machine — so a typed `/word` only ever reaches a session when it names a registered skill. A session running outside the machine (heartbeat only) is left alone — it has no window to type into.
 
 ## Terminals in mission control
 
