@@ -44,6 +44,9 @@ for name, cmd in json.load(open('$CONF')).get('services', {}).items():
   if ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "$name"; then
     tmux new-window -t "$SESSION" -n "$name" -c "$PROJ_DIR"
     tmux send-keys -t "$SESSION:$name" "$PRE$cmd" Enter
+  elif ! bash "$PLUGIN_ROOT/scripts/service-alive.sh" "$SESSION" "$name"; then
+    # the window survived a --pause or a crash and sits at its prompt: the service starts again in it
+    tmux send-keys -t "$SESSION:$name" "$PRE$cmd" Enter && echo "service   $name started again in its window"
   fi
 done
 
