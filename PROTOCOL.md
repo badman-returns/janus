@@ -24,6 +24,7 @@ exactly as it did:
 | `gate` | `{"max_files":4,"guarded":["run-log.sh","proof-fresh.sh","hooks.json"]}` | `gate-check.sh` | when a task must stop and declare a checklist. `guarded` entries are globs, matched against the whole path, its basename, and `*/<glob>` |
 | `knowledge_paths` | `[".claude/knowledge/**","docs/decisions/**"]` | `knowledge-log.sh` | globs whose writes are worth recording. Absolute globs and `~` are allowed, which is how a write under a Claude config dir's `memory/` gets caught |
 | `foundry` | `true` | `foundry.sh` | `false` makes the Stop-hook skill foundry a no-op. Only an explicit `false` disables it — a missing key, a missing file or unparseable JSON all keep it on |
+| `memory_dataset` | `"fleet"` | `dm-session.sh` | the Cognee dataset every session opened inside this machine carries as `COGNEE_PLUGIN_DATASET`; defaults to `project`. Rooms are datasets one to one, so recall never crosses a room; a machine on the employer seat has its own |
 
 Optional: `"secrets": { "<ENV_VAR>": "<name>", ... }`. Each value names a macOS keychain generic
 password `dm:<project>:<name>` whose password is the base64 of the secret (`security add-generic-password
