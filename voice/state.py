@@ -47,8 +47,8 @@ class Machine:
             if not text:
                 self.empty_turns += 1
                 if self.paused:
-                    self.current = self.paused; self.paused = None
-                    out.append(('resume_playback', self.current[0], self.current[2])); self._go('speaking', out)
+                    self.current = self.paused; self.paused = None      # heard nobody: back to the sentence it cut
+                    out.append(('say_bridge', 'Back to where I was.')); out.append(('resume_playback', self.current[0], self.current[2])); self._go('speaking', out)
                 else: self._go(self._rest(), out)
                 return out
             stem = a.get('stem') or f"note-{int(self.now()*1000)}-voice"
@@ -103,7 +103,7 @@ class Machine:
             self._go(self._rest(), out)
         elif ev == 'timeout':
             if self.state == 'waiting': self._go(self._rest(), out)
-            elif self.state == 'thinking': out.append(('say_bridge', 'Still working. I will tell you.')); self.pending_note = None; self._go(self._rest(), out)
+            elif self.state == 'thinking': out.append(('say_bridge', 'Still working. I will tell you.')); self._go(self._rest(), out)
             elif self.state == 'listening': return self.feed('speech_end', text='')
         return out
 
@@ -172,6 +172,16 @@ def selftest():
     m.feed('flag', name='dnd', value=True); m.feed('offline'); m.feed('online')
     assert m.state == 'muted'                                                  # it comes back to rest, not to idle
     m.feed('flag', name='dnd', value=False); assert m.state == 'idle'
+    m.feed('key'); m.feed('speech_end', text='the slow one', stem='s1'); m.feed('timeout')
+    assert m.state == 'idle' and m.pending_note == 's1'                        # the watchdog gives up, the question does not
+    m.feed('reply', stem='s1', sentences=['Late.']); assert m.state == 'speaking'   # it landed late and is still solicited
+    m.feed('sentence_done'); assert m.state == 'idle'
+    m.feed('key'); m.feed('speech_end', text='read it', stem='F')
+    m.feed('reply', stem='F', sentences=['F1.', 'F2.']); m.feed('wake'); assert m.state == 'listening'
+    o = m.feed('speech_end', text='')                                          # a false alarm: nothing written, it resumes
+    assert not [x for x in o if x[0] == 'write_note'] and ('say_bridge', 'Back to where I was.') in o
+    assert ('resume_playback', 'F', 0) in o and m.state == 'speaking'
+    m.feed('stop')
     print('PASS state selftest')
 
 if __name__ == '__main__':

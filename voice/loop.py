@@ -23,6 +23,10 @@ VOICE = C.get('kokoro_voice', os.environ.get('KOKORO_VOICE', 'am_michael')); PAR
 WHISPER = C.get('whisper_url', 'http://127.0.0.1:8178/v1/audio/transcriptions')
 VAD_MODE = C.get('vad', 'silero'); RMS_ON = float(C.get('vad_rms', 0.015))    # ponytail: one knob, tune at the desk
 ECHO_MARGIN = float(C.get('echo_margin', 1.8))    # how far over its own echo a voice must be to be someone else
+WAKE_HI = float(C.get('wake_threshold_speaking', 0.8))   # his own tail scores over 0.5 on the wake model
+WAKE_SETTLE = float(C.get('wake_settle', 1.5))           # how long after his last sound the room is still his
+MIN_SPEECH = float(C.get('min_speech', 0.4))             # a turn with less speech than this heard nobody
+THINK_TIMEOUT = float(C.get('think_timeout', 120))       # the real concierge answers in 27-34 s
 SESSION = 'dm-' + CONF.get('project', 'fleet'); PICKUP = CONF.get('pickup_skill', 'dm')
 BRAIN = os.path.expanduser('~/.brain'); os.makedirs(os.path.join(BRAIN, 'voice', 'failed'), exist_ok=True)
 SR = 16000; FRAME = 1280            # 80 ms frames: what openWakeWord wants
@@ -60,6 +64,16 @@ def mic_frames(on_dead):
         time.sleep(0.5)
 
 def rms(f): return float(np.sqrt(np.mean((f.astype(np.float32) / 32768.0) ** 2)) + 1e-9)
+def wake_threshold(state, since_play_end):
+    """How sure the wake model has to be. While Janus speaks, and for wake_settle after his last sound,
+    his own tail scores over 0.5 — so the door is WAKE_HI there and 0.5 everywhere else. The name still
+    interrupts; a tail does not."""
+    return WAKE_HI if state == 'speaking' or since_play_end < WAKE_SETTLE else 0.5
+JUNK = {'thank you', 'thanks', 'thanks for watching', 'you', 'bye', 'so', 'okay', 'hmm', 'uh'}
+def false_alarm(text, had_speech):
+    """A turn that heard nobody: no real speech at all, or the stock phrase whisper invents out of a
+    tail of silence. It writes no note and files nothing."""
+    return not had_speech or re.sub(r'[^\w\s]', '', (text or '').lower()).strip() in JUNK | {''}
 def make_wake():
     from openwakeword.model import Model
     return Model(wakeword_models=[WAKE], inference_framework='onnx')
@@ -150,6 +164,7 @@ class Player:
     def __init__(self, on_done):
         self.on_done = on_done; self.proc = None; self.cache = {}; self.lock = threading.Lock(); self.gen = 0
         self.play_level = 0.0; self.play_t0 = 0.0     # what the room is being given right now, and since when; 0 when quiet
+        self.play_end = 0.0                           # when his last sound stopped: the tail is still his for wake_settle
         self.inflight = {}; self.rendering = 0        # one tts.sh per wav, and a count for the stranded-speaking watchdog
         self.q = queue.Queue(); threading.Thread(target=self._worker, daemon=True).start()
     def render(self, key, text):
@@ -205,7 +220,7 @@ class Player:
         while self.proc.poll() is None:
             k = int((time.time() - t0) * 30); self.play_level = env[k] if k < len(env) else 0.0
             stream.emit({'t': 'level', 'v': round(min(1.0, self.play_level * 4), 3)}); time.sleep(1 / 30)
-        self.play_level = 0.0; self.play_t0 = 0.0
+        self.play_level = 0.0; self.play_t0 = 0.0; self.play_end = time.time()
         stream.emit({'t': 'level', 'v': 0.0})
         if kind == 'sentence' and gen == self.gen and self.proc.returncode == 0: self.on_done()
     def pause(self):
@@ -214,13 +229,14 @@ class Player:
             while True:
                 try: self.q.get_nowait()
                 except queue.Empty: break
-            if self.proc and self.proc.poll() is None: self.proc.terminate()
+            if self.proc and self.proc.poll() is None: self.proc.terminate(); self.play_end = time.time()
 
 # ---- the loop: performs the machine's actions; owns the microphone policy ----
 class Loop:
     def __init__(self):
         self.m = Machine(); self.replies = {}; self.player = Player(self.sentence_done); self.lock = threading.RLock()
         self.mic_open = False; self.buf = []; self.silence = 0; self.speech = 0; self.opened_at = 0.0; self.last_partial = 0.0
+        self.real = 0                                   # speech frames past the echo settle: the endpointer's count includes his tail
         self.flags = {'dnd': False, 'meeting': False, 'voice_on': False}; self.said_working = False
         self.echo = 0.0; self.echo_rid = None           # how loudly the room hands Janus back his own voice
         self.finishing = False                          # a transcript is in flight: `listening` with a shut mic is expected
@@ -235,7 +251,7 @@ class Loop:
             k = a[0]
             if k == 'state':
                 info = {x: y for x, y in a[2].items() if x != 'since'}; stream.emit({'t': 'state', 'state': a[1], **info}); self.said_working = False
-            elif k == 'open_mic': self.buf = []; self.silence = 0; self.speech = 0; self.opened_at = time.time(); self.last_partial = time.time(); self.mic_open = True
+            elif k == 'open_mic': self.buf = []; self.silence = 0; self.speech = 0; self.real = 0; self.opened_at = time.time(); self.last_partial = time.time(); self.mic_open = True
             elif k == 'close_mic': self.mic_open = False; stream.emit({'t': 'level', 'v': 0.0})
             elif k == 'pause_playback': self.player.pause()
             elif k in ('speak', 'resume_playback'):
@@ -265,22 +281,23 @@ class Loop:
             if self.mic_open:
                 with self.lock:
                     if not self.mic_open: continue                        # closed under us between the test and the lock
-                    self.buf.append(f); talking = vad(f)
+                    self.buf.append(f); talking = vad(f); now = time.time()
                     stream.emit({'t': 'level', 'v': round(min(1.0, rms(f) * 8), 3)})
-                    if talking: self.speech += 1; self.silence = 0
+                    if talking:
+                        self.speech += 1; self.silence = 0
+                        if now - self.player.play_end > WAKE_SETTLE: self.real += 1   # his own tail is not somebody talking
                     else: self.silence += 1
-                    now = time.time()
                     if PARTIALS and self.speech > 3 and now - self.last_partial > 1.5:
                         self.last_partial = now; threading.Thread(target=self.partial, args=(list(self.buf),), daemon=True).start()
                     if (self.speech > 0 and self.silence >= 9) or now - self.opened_at > 20 or (self.speech == 0 and now - self.opened_at > 4):
-                        frames = list(self.buf); had = self.speech > 0; self.mic_open = False; self.finishing = True
+                        frames = list(self.buf); had = self.real * FRAME / SR >= MIN_SPEECH; self.mic_open = False; self.finishing = True
                         stream.emit({'t': 'level', 'v': 0.0})            # the meter stops with the microphone, not with the transcript
                         threading.Thread(target=self.finish, args=(frames, had), daemon=True).start()
             elif st == 'speaking':
                 rid = self.m.current[0] if self.m.current else None
                 if rid != self.echo_rid: self.echo_rid = rid; self.echo = 0.0; self.speech = 0; wake.reset()   # a new reply, a new room
                 pl = self.player.play_level; r = rms(f)
-                if max(wake.predict(f).values()) > 0.5:                             # the name always interrupts
+                if max(wake.predict(f).values()) > wake_threshold(st, 0.0):          # the name interrupts, over the higher bar
                     self.speech = 0; wake.reset(); self.feed('wake')
                 else:                                                               # louder than his own echo, for 320 ms
                     settling = time.time() - self.player.play_t0 < 0.6              # calibrate first, judge after
@@ -292,7 +309,8 @@ class Loop:
                     # 0.6 s settle window still teaches the estimate, so it reads loud; the name is the door for that case
                     if self.speech >= 4: self.speech = 0; self.feed('wake')
             elif st in ('idle', 'waiting', 'thinking'):                             # the machine takes the name from all three
-                if max(wake.predict(f).values()) > 0.5: wake.reset(); self.feed('wake')
+                if max(wake.predict(f).values()) > wake_threshold(st, time.time() - self.player.play_end):
+                    wake.reset(); self.feed('wake')
     def partial(self, frames):
         try:
             t = transcribe(frames)
@@ -308,8 +326,10 @@ class Loop:
             except Exception: pass
             self.act([('say_bridge', 'I could not hear that. The transcriber is down.')])
         finally:                                          # whatever happened, the machine leaves `listening`
+            if false_alarm(text, had_speech):             # nobody spoke: no note, no nudge, no answer to a phantom
+                text = ''; stream.emit({'t': 'false_alarm'})
+            else: stream.emit({'t': 'you', 'text': text, 'final': True})
             stem = f"note-{int(time.time() * 1000)}-voice-{slugify(text)}"
-            if text: stream.emit({'t': 'you', 'text': text, 'final': True})
             self.finishing = False
             self.feed('speech_end', text=text, stem=stem)
     def housekeeping(self):
@@ -321,7 +341,7 @@ class Loop:
                     if v != self.flags[name]: self.flags[name] = v; self.feed('flag', name=name, value=v)
                 age = time.monotonic() - self.m.since
                 if self.m.state == 'thinking' and age > 5 and not self.said_working: self.said_working = True; self.act([('say_bridge', 'Working on it.')])
-                if (self.m.state == 'thinking' and age > 60) or (self.m.state == 'waiting' and age > 600): self.feed('timeout')
+                if (self.m.state == 'thinking' and age > THINK_TIMEOUT) or (self.m.state == 'waiting' and age > 600): self.feed('timeout')
                 # nothing playing and nothing rendering is not `speaking`; a closed microphone is not `listening`
                 self.idle_speak = self.idle_speak + 1 if self.m.state == 'speaking' and not self.player.busy() else 0
                 self.idle_listen = self.idle_listen + 1 if self.m.state == 'listening' and not self.mic_open and not self.finishing else 0
