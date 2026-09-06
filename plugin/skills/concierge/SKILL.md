@@ -24,6 +24,8 @@ summarise, file, and answer. `$DM_PLUGIN` is this plugin's root. The brain repo 
    short, in the seven slots when it is a briefing. A note with an `interrupted: <reply> at <n>`
    line cut into your own sentence n of that reply: answer that question first and do not repeat
    what you already said.
+5. A note beginning `from: relay <machine>` is that machine's answer to a question you routed;
+   keep it in context and speak only if the operator's pending question needed it.
 
 ## Reply headers
 A reply file may start with header lines, each `key: value`, then a blank line: `via: <machine>`

@@ -102,22 +102,40 @@ def nudge():
         subprocess.run(['tmux', 'send-keys', '-t', f'{SESSION}:{w}', f'/{PICKUP} process the pending items in .delivery/inbox', 'Enter'], timeout=5)
         open(os.path.join(ROOT, '.delivery', '.nudge'), 'w').write(str(int(time.time())))
     except Exception as e: print('nudge failed:', e, file=sys.stderr)
+def reply_dirs():
+    """The fleet's own replies, and every other registered machine's. The concierge routes an office
+    question with fleet-route.sh; that machine answers into its own .delivery/replies, and until now
+    nothing carried the answer back to the desk. ponytail: the registry is read once, so a machine
+    registered later needs a loop restart — re-reading it would also have to seed `seen` per dir."""
+    own = os.path.realpath(os.path.join(ROOT, '.delivery', 'replies')); dirs = {own: None}
+    try: reg = json.load(open(os.path.expanduser('~/.delivery-machine/registry.json')))
+    except Exception as e: print('registry:', e, file=sys.stderr); return dirs
+    for name, m in reg.items():
+        dirs.setdefault(os.path.realpath(os.path.join(m.get('dir', ''), '.delivery', 'replies')), name)
+    return dirs                                               # the fleet's own dir is already in, and stays None
 def watch_replies(on_reply):
-    d = os.path.join(ROOT, '.delivery', 'replies'); os.makedirs(d, exist_ok=True); seen = set(glob.glob(os.path.join(d, '*.md')))
+    os.makedirs(os.path.join(ROOT, '.delivery', 'replies'), exist_ok=True)   # only ours; another machine's is its own
+    dirs = reply_dirs(); seen = {p for d in dirs for p in glob.glob(os.path.join(d, '*.md'))}
     while True:
         try:
             fresh = []
-            for p in glob.glob(os.path.join(d, '*.md')):
-                if p in seen: continue
-                try: mt = os.path.getmtime(p)
-                except OSError: continue                      # gone between the glob and the stat
-                if time.time() - mt < 0.3: continue           # still being written; read it next pass
-                fresh.append((mt, p))
-            for _, p in sorted(fresh):
+            for d, machine in dirs.items():
+                for p in glob.glob(os.path.join(d, '*.md')):
+                    if p in seen: continue
+                    try: mt = os.path.getmtime(p)
+                    except OSError: continue                  # gone between the glob and the stat
+                    if time.time() - mt < 0.3: continue       # still being written; read it next pass
+                    fresh.append((mt, p, machine))
+            for _, p, machine in sorted(fresh):
                 try: txt = open(p, encoding='utf-8').read()
                 except Exception: continue                    # not readable yet: no `seen`, so we try again
                 seen.add(p)
-                h, body = split_header(txt); on_reply(os.path.basename(p)[:-3], sentences(body), h)
+                h, body = split_header(txt)
+                if machine:                                   # another machine's answer to a question we routed
+                    h = dict(h, via=machine)                  # its name, whatever the file claims
+                    write_note(f"note-{int(time.time() * 1000)}-relay-{slugify(machine)}-{slugify(body)}",
+                               body.strip(), None, None, 'relay ' + machine)   # so the concierge has it in context
+                on_reply(os.path.basename(p)[:-3], sentences(body), h)
         except Exception as e: print('reply watcher:', e, file=sys.stderr)
         time.sleep(0.25)
 
