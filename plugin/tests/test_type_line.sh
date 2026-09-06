@@ -18,6 +18,11 @@ bash "$TL" "$W2" "/dm process" 2>"$T/err"; rc=$?
 [ "$rc" = 3 ] || fail "draft: expected exit 3, got $rc"
 grep -q 'push it' "$T/err" || fail "draft not named: $(cat "$T/err")"
 sleep 0.3; [ ! -s "$T/typed2" ] || fail "typed over a draft: $(cat "$T/typed2")"
+# Claude Code's dimmed prompt suggestion is not a draft: the line is typed (it replaces the suggestion)
+tmux $TMUX_SOCK new-window -d -t tl "printf '❯ \033[2mapprove shop-web\033[0m\n'; cat > '$T/typed4'"
+W4=$(win); sleep 0.5
+bash "$TL" "$W4" "/dm process" || fail "a dim suggestion was treated as a draft (exit $?)"
+sleep 0.5; grep -q '^/dm process$' "$T/typed4" || fail "line not typed over a suggestion: $(cat "$T/typed4")"
 # no input line at all (a trust dialog, a menu)
 tmux $TMUX_SOCK new-window -d -t tl "printf 'Do you trust the files in this folder?\n'; cat > '$T/typed3'"
 W3=$(win); sleep 0.5
