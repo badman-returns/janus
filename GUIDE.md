@@ -145,8 +145,8 @@ built-in speakers.
   If a service will not bind: `lsof -nP -iTCP:<port> -sTCP:LISTEN` and check the start time.
 - **Stop every machine**: `tmux kill-server` — same caveat, no handoffs. `dm-boot.sh` restores the
   ones not marked stopped.
-- **From the phone**: `/pause` stops the scheduled jobs only — the brief, the miner, the foundry —
-  while gates and replies keep flowing; `/voice off` and `/dnd on` quiet the loop and the desk
+- **From the phone**: `pause` stops the scheduled jobs only — the brief, the miner, the foundry —
+  while gates and replies keep flowing; `voice off` and `dnd on` quiet the loop and the desk
   speaker the same way the menu bar does.
 
 ## Reading the state without the cockpit
