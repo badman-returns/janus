@@ -250,6 +250,7 @@ class Loop:
         self.real = 0                                   # speech frames past the echo settle: the endpointer's count includes his tail
         self.seen_play_end = 0.0                        # the last playback end the wake model was reset for
         self.pl_hist = [0.0]                            # his own level over the last 400 ms, for the echo judgement
+        self.echo_frames = 0                            # how many frames of his own voice taught the echo ratio
         self.flags = {'dnd': False, 'meeting': False, 'voice_on': False}; self.said_working = False
         self.echo = 0.0; self.echo_rid = None           # how loudly the room hands Janus back his own voice
         self.finishing = False                          # a transcript is in flight: `listening` with a shut mic is expected
@@ -317,11 +318,12 @@ class Loop:
                 if max(wake.predict(f).values()) > wake_threshold(st, 0.0):          # the name interrupts, over the higher bar
                     self.speech = 0; wake.reset(); self.feed('wake')
                 else:                                                               # louder than his own echo, for 320 ms
-                    settling = time.time() - self.player.play_t0 < (0.6 if self.echo > 0.0 else 1.2)   # calibrate first, judge after; longer the very first time
+                    # calibrate first, judge after: 0.6 s into each sound, and only once two seconds of his voice have taught the ratio at all
+                    settling = time.time() - self.player.play_t0 < 0.6 or self.echo_frames < 25
                     # judged on what we knew before this frame, and never on an estimate we do not have yet
                     over = self.echo > 0.0 and not settling and vad(f) and r > max(2 * RMS_ON, self.echo * plh * ECHO_MARGIN)
                     if pl > 0.05 and not over:                                      # only his own voice teaches the estimate
-                        ratio = r / pl; self.echo = ratio if self.echo == 0.0 else 0.9 * self.echo + 0.1 * ratio
+                        ratio = r / pl; self.echo = ratio if self.echo == 0.0 else 0.9 * self.echo + 0.1 * ratio; self.echo_frames += 1
                     self.speech = self.speech + 1 if over else 0                    # ponytail: a voice arriving inside the
                     # 0.6 s settle window still teaches the estimate, so it reads loud; the name is the door for that case
                     if self.speech >= 4: self.speech = 0; self.feed('over')   # talked over: same as the name, named apart in the stream
