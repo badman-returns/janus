@@ -24,7 +24,7 @@ WHISPER = C.get('whisper_url', 'http://127.0.0.1:8178/v1/audio/transcriptions')
 VAD_MODE = C.get('vad', 'silero'); RMS_ON = float(C.get('vad_rms', 0.015))    # ponytail: one knob, tune at the desk
 ECHO_MARGIN = float(C.get('echo_margin', 1.8))    # how far over its own echo a voice must be to be someone else
 WAKE_HI = float(C.get('wake_threshold_speaking', 1.01))  # the door while he speaks: shut. The model was trained on Kokoro voices, so his own voice is its best match
-WAKE_SETTLE = float(C.get('wake_settle', 1.5))           # how long after his last sound the room is still his
+WAKE_SETTLE = float(C.get('wake_settle', 3.0))           # how long after his last sound the room is still his: the model's scores lag the sound by up to a second
 MIN_SPEECH = float(C.get('min_speech', 0.4))             # a turn with less speech than this heard nobody
 THINK_TIMEOUT = float(C.get('think_timeout', 120))       # the real concierge answers in 27-34 s
 SESSION = 'dm-' + CONF.get('project', 'fleet'); PICKUP = CONF.get('pickup_skill', 'dm')
@@ -248,6 +248,7 @@ class Loop:
         self.m = Machine(); self.replies = {}; self.player = Player(self.sentence_done); self.lock = threading.RLock()
         self.mic_open = False; self.buf = []; self.silence = 0; self.speech = 0; self.opened_at = 0.0; self.last_partial = 0.0
         self.real = 0                                   # speech frames past the echo settle: the endpointer's count includes his tail
+        self.seen_play_end = 0.0                        # the last playback end the wake model was reset for
         self.flags = {'dnd': False, 'meeting': False, 'voice_on': False}; self.said_working = False
         self.echo = 0.0; self.echo_rid = None           # how loudly the room hands Janus back his own voice
         self.finishing = False                          # a transcript is in flight: `listening` with a shut mic is expected
@@ -321,6 +322,8 @@ class Loop:
                     if self.speech >= 4: self.speech = 0; self.feed('over')   # talked over: same as the name, named apart in the stream
             elif st in ('idle', 'waiting', 'thinking'):                             # the machine takes the name from all three
                 # the door is high while any sound of his plays (a bridge during thinking, the whisper-down line at rest), not only in `speaking`
+                if self.player.play_end != self.seen_play_end:                      # his sound just stopped: forget what the model heard of it
+                    self.seen_play_end = self.player.play_end; wake.reset()
                 if max(wake.predict(f).values()) > wake_threshold(st, 0.0 if self.player.play_t0 else time.time() - self.player.play_end):
                     wake.reset(); self.feed('wake')
     def partial(self, frames):

@@ -21,14 +21,14 @@ sys.path.insert(0, os.environ['VOICE'])
 import loop, glob
 
 # --- the knobs, as the fleet config leaves them ---
-assert (loop.WAKE_HI, loop.WAKE_SETTLE, loop.MIN_SPEECH, loop.THINK_TIMEOUT) == (1.01, 1.5, 0.4, 120.0), \
+assert (loop.WAKE_HI, loop.WAKE_SETTLE, loop.MIN_SPEECH, loop.THINK_TIMEOUT) == (1.01, 3.0, 0.4, 120.0), \
     'defaults moved: %r' % ((loop.WAKE_HI, loop.WAKE_SETTLE, loop.MIN_SPEECH, loop.THINK_TIMEOUT),)
 
 # --- the threshold is a function of the state and how long ago he stopped ---
 assert loop.wake_threshold('speaking', 99.0) > 1, 'while he speaks the door is shut: no score can open it'
 assert loop.wake_threshold('idle', 0.5) > 1, 'the tail is still his for wake_settle'
-assert loop.wake_threshold('waiting', 1.49) > 1
-assert loop.wake_threshold('idle', 1.51) == 0.5, 'the room goes back to the operator after wake_settle'
+assert loop.wake_threshold('waiting', 2.9) > 1
+assert loop.wake_threshold('idle', 3.1) == 0.5, 'the room goes back to the operator after wake_settle'
 assert loop.wake_threshold('thinking', 600.0) == 0.5
 
 # --- the false-alarm rule ---

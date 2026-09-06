@@ -54,7 +54,7 @@ class Machine:
                         out.append(('say_bridge', 'I keep hearing myself. Stopping here.')); self._go(self._rest(), out); return out
                     self.current = self.paused; self.paused = None      # heard nobody: back to the sentence it cut
                     out.append(('say_bridge', 'Back to where I was.')); out.append(('resume_playback', self.current[0], self.current[2])); self._go('speaking', out)
-                else: self._go(self._rest(), out)
+                else: self._go('thinking' if self.pending_note and not self.muted() else self._rest(), out)   # a false alarm mid-thought goes back to thinking
                 return out
             self.false_in_row = 0
             stem = a.get('stem') or f"note-{int(self.now()*1000)}-voice"
