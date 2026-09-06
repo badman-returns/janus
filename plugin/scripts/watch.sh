@@ -25,12 +25,14 @@ while true; do
   if [ "$PENDING" != "0" ] && [ ! -f "$LOCK" ]; then
     # a live session inside the machine gets the items typed into it (Claude queues input while busy);
     # at most once per 2 minutes so a session mid-answer is not spammed
-    LIVEWIN=$(tmux list-windows -t "dm-$PROJ" -F '#W' 2>/dev/null | grep '^claude' | head -1)
+    # by id: a window linked twice (the bridge, a viewer) makes the name `claude` ambiguous to tmux
+    LIVEWIN=$(tmux list-windows -t "dm-$PROJ" -F '#{window_id} #W' 2>/dev/null | awk '$2 ~ /^claude/ {print $1; exit}')
     if [ -n "$LIVEWIN" ]; then
       NUDGE=".delivery/.nudge"; NOW=$(date +%s); LAST=$(cat "$NUDGE" 2>/dev/null || echo 0)
       if [ $((NOW - LAST)) -ge 120 ]; then
-        echo "$(date '+%H:%M:%S') — $PENDING inbox item(s); handing them to live session '$LIVEWIN'"
-        tmux send-keys -t "dm-$PROJ:$LIVEWIN" "$(bash "$HERE/pickup-line.sh")" && sleep 1 && tmux send-keys -t "dm-$PROJ:$LIVEWIN" Enter
+        echo "$(date '+%H:%M:%S') — $PENDING inbox item(s); handing them to live session $LIVEWIN"
+        # type-line.sh refuses to type over an unsent line in the box and says so; the items wait
+        bash "$HERE/type-line.sh" "$LIVEWIN" "$(bash "$HERE/pickup-line.sh")" || echo "$(date '+%H:%M:%S') — held: the session's input box is not empty (see above); retrying in 2 minutes"
         echo "$NOW" > "$NUDGE"
       fi
     # no session anywhere → headless pickup; a session outside the machine (heartbeat) is left alone

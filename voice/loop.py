@@ -96,10 +96,14 @@ def nudge():
     The line names the machine's pickup skill (`pickup_skill` in config.json, `dm` when unset), so a
     machine with a concierge is asked in its own words instead of being handed a build intent."""
     try:
-        wins = subprocess.run(['tmux', 'list-windows', '-t', SESSION, '-F', '#W'], capture_output=True, text=True, timeout=5).stdout.split()
-        w = next((x for x in wins if x.startswith('claude')), None)
+        wins = subprocess.run(['tmux', 'list-windows', '-t', SESSION, '-F', '#{window_id} #W'], capture_output=True, text=True, timeout=5).stdout.splitlines()
+        w = next((x.split()[0] for x in wins if len(x.split()) > 1 and x.split()[1].startswith('claude')), None)
         if not w: return
-        subprocess.run(['tmux', 'send-keys', '-t', f'{SESSION}:{w}', f'/{PICKUP} process the pending items in .delivery/inbox', 'Enter'], timeout=5)
+        # by id (a name two windows share is ambiguous to tmux), through type-line.sh: a line left unsent
+        # in the session's box would be submitted together with ours, so it refuses and says why
+        r = subprocess.run(['bash', os.path.join(os.path.dirname(HERE), 'plugin', 'scripts', 'type-line.sh'), w,
+                            f'/{PICKUP} process the pending items in .delivery/inbox'], capture_output=True, text=True, timeout=15)
+        if r.returncode: print('nudge held:', r.stderr.strip(), file=sys.stderr); return
         open(os.path.join(ROOT, '.delivery', '.nudge'), 'w').write(str(int(time.time())))
     except Exception as e: print('nudge failed:', e, file=sys.stderr)
 def reply_dirs():
@@ -111,7 +115,8 @@ def reply_dirs():
     try: reg = json.load(open(os.path.expanduser('~/.delivery-machine/registry.json')))
     except Exception as e: print('registry:', e, file=sys.stderr); return dirs
     for name, m in reg.items():
-        dirs.setdefault(os.path.realpath(os.path.join(m.get('dir', ''), '.delivery', 'replies')), name)
+        try: dirs.setdefault(os.path.realpath(os.path.join(m.get('dir', ''), '.delivery', 'replies')), name)
+        except Exception as e: print('registry entry', name, 'skipped:', e, file=sys.stderr)   # one bad entry never kills the watcher
     return dirs                                               # the fleet's own dir is already in, and stays None
 def watch_replies(on_reply):
     os.makedirs(os.path.join(ROOT, '.delivery', 'replies'), exist_ok=True)   # only ours; another machine's is its own

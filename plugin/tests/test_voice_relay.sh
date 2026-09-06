@@ -14,7 +14,7 @@ cat > "$T/home/.delivery-machine/registry.json" <<JSON
  "relayb":     {"dir": "$T/mach-b", "session": "dm-relayb"}}
 JSON
 echo '{"project": "relayfleet"}' > "$T/fleet/.delivery/config.json"
-printf '#!/usr/bin/env bash\necho "$*" >> "%s/tmux.log"\n[ "$1" = list-windows ] && echo claude\nexit 0\n' "$T" > "$T/bin/tmux"
+printf '#!/usr/bin/env bash\necho "$*" >> "%s/tmux.log"\ncase "$1" in list-windows) echo "@1 claude";; capture-pane) printf "❯ \\n";; esac\nexit 0\n' "$T" > "$T/bin/tmux"
 chmod +x "$T/bin/tmux"
 echo 'Answered long ago.' > "$T/mach-b/.delivery/replies/note-1-tg-old.md"   # already there: skipped at startup
 
