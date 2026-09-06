@@ -44,5 +44,10 @@ sed -n 2p "$T/b/.delivery/inbox/$RB" | grep -qx 'APPROVE' || fail "bare approve 
 HOME="$T/home" bash "$FG" a APPROVE "ship it" || fail "approve with a note exited $?"
 RA=$(ls "$T/a/.delivery/inbox" | grep '^reply-.*gate-s2' )
 sed -n 2p "$T/a/.delivery/inbox/$RA" | grep -qx 'APPROVE — ship it' || fail "approve note dropped"
+# the gate card tells the operator to type `/gate approve <proj>`, so a lowercase verdict must work
+printf 'GATE 2 — review proof for s4\n' > "$T/a/.delivery/inbox/gate-s4-proof.txt"
+HOME="$T/home" bash "$FG" a approve "lower case" || fail "lowercase approve exited $?"
+R4=$(ls "$T/a/.delivery/inbox" | grep '^reply-.*gate-s4')
+sed -n 2p "$T/a/.delivery/inbox/$R4" | grep -qx 'APPROVE — lower case' || fail "lowercase verdict not upper-cased"
 HOME="$T/home" bash "$FG" latest APPROVE >/dev/null 2>&1; [ $? = 2 ] || fail "latest with nothing waiting should exit 2"
 echo "PASS test_fleet_status"

@@ -7,10 +7,15 @@ T=$(mktemp -d); trap 'kill $SRV 2>/dev/null; rm -rf "$T"' EXIT
 fail(){ echo "FAIL test_fleet_feed: $1"; exit 1; }
 cat > "$T/stub.py" <<'EOF'
 import http.server, json, sys, re, urllib.parse
-LOG = sys.argv[2]
+LOG = sys.argv[2]; FAILS = LOG + '.fail'   # write "N [code]" there: the next N requests answer code (500)
 class H(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         n = int(self.headers.get('Content-Length', 0)); body = self.rfile.read(n)
+        try: left, code = (open(FAILS).read().split() + ['500'])[:2]
+        except Exception: left, code = '0', '500'
+        if int(left) > 0:                     # a refused send: not logged, so it never counts as sent
+            open(FAILS, 'w').write(f'{int(left) - 1} {code}')
+            self.send_response(int(code)); self.end_headers(); self.wfile.write(b'{"ok":false}'); return
         method = self.path.rsplit('/', 1)[-1]
         ctype = self.headers.get('Content-Type', '')
         text = ''
@@ -46,4 +51,72 @@ grep -c 'dm-verifier done' "$T/calls.log" | grep -qx 1 || fail "ledger line re-s
 echo '{"ts":"2026-09-05T10:05:00Z","agent":"dm-builder","slice":"badge","status":"dispatched","note":"round 1"}' >> "$T/m1/.delivery/runs.jsonl"
 env $ENV python3 "$FF" --once || fail "third pass exited $?"
 grep -q 'm1 · badge · dm-builder dispatched · round 1' "$T/calls.log" || fail "appended line not posted"
+
+# (a) a re-gated slice: dm-gate.sh rewrites the same filename, so a later mtime must be a new card
+sleep 1
+printf 'GATE 2 — review proof for desk\n\nbranch: feat/desk\nround 2, after the rework\n' > "$T/m1/.delivery/inbox/gate-desk-proof.txt"
+env $ENV python3 "$FF" --once || fail "re-gate pass exited $?"
+grep -c 'GATE 2' "$T/calls.log" | grep -qx 2 || fail "re-gated slice never announced again"
+env $ENV python3 "$FF" --once || fail "pass after the re-gate exited $?"
+grep -c 'GATE 2' "$T/calls.log" | grep -qx 2 || fail "re-gate card sent twice"
+COUNT='import json,sys; print(len(json.load(open(sys.argv[1]))["announced"]))'
+python3 -c "$COUNT" "$T/home/.delivery-machine/feed-state.json" | grep -qx 2 || fail "announced is not one entry per card sent for the live file"
+rm "$T/m1/.delivery/inbox/gate-desk-proof.txt"          # answered: the entry must not outlive the file
+env $ENV python3 "$FF" --once || fail "pass after answering the gate exited $?"
+python3 -c "$COUNT" "$T/home/.delivery-machine/feed-state.json" | grep -qx 0 || fail "answered gate left in announced"
+
+# (b) an ask larger than the 1500-char send cap is parsed whole; only the rendered card is capped
+python3 - "$T/m1/.delivery/inbox/ask-port.txt" <<'EOF'
+import json, sys
+json.dump({"title": "Which port for the cockpit?", "context": "background prose " * 100,
+           "questions": [{"question": "port", "options": ["5501", "5502"]}]}, open(sys.argv[1], "w"))
+EOF
+[ "$(wc -c < "$T/m1/.delivery/inbox/ask-port.txt")" -gt 1500 ] || fail "ask fixture is not over the cap"
+env $ENV python3 "$FF" --once || fail "ask pass exited $?"
+grep -q 'Which port for the cockpit?' "$T/calls.log" || fail "long ask card missing"
+grep -q -- '- port: 5501 | 5502' "$T/calls.log" || fail "long ask questions not rendered"
+grep -q 'questions' "$T/calls.log" && fail "long ask sent as raw cut JSON"
+
+# (c) a send that fails keeps the cursor on its line, and that line goes out on the next pass
+echo '{"ts":"2026-09-05T10:10:00Z","agent":"dm-builder","slice":"badge","status":"working","note":"survives a 500"}' >> "$T/m1/.delivery/runs.jsonl"
+echo 3 > "$T/calls.log.fail"                            # one send = three attempts, all refused
+ERR=$(env $ENV python3 "$FF" --once 2>&1 >/dev/null) || fail "pass with a failed send exited $?"
+echo "$ERR" | grep -q 'telegram failed: sendMessage' || fail "no stderr line for the failed send: $ERR"
+grep -q 'survives a 500' "$T/calls.log" && fail "a refused line was recorded as sent"
+env $ENV python3 "$FF" --once || fail "retry pass exited $?"
+grep -c 'survives a 500' "$T/calls.log" | grep -qx 1 || fail "failed ledger line not retried on the next pass"
+
+# a 400 is permanent: the line is stepped over (no retry) so the machine's later lines still flow
+echo '{"ts":"2026-09-05T10:15:00Z","agent":"dm-builder","slice":"badge","status":"working","note":"rejected for good"}' >> "$T/m1/.delivery/runs.jsonl"
+echo '{"ts":"2026-09-05T10:16:00Z","agent":"dm-builder","slice":"badge","status":"working","note":"the line behind it"}' >> "$T/m1/.delivery/runs.jsonl"
+echo "1 400" > "$T/calls.log.fail"                      # one rejection; a retry would send it after
+ERR=$(env $ENV python3 "$FF" --once 2>&1 >/dev/null) || fail "pass with a rejected send exited $?"
+echo "$ERR" | grep -qx 'telegram rejected: sendMessage: HTTP 400' || fail "no stderr line for the rejection: $ERR"
+grep -q 'rejected for good' "$T/calls.log" && fail "a rejected line was retried and reached the log"
+grep -q 'the line behind it' "$T/calls.log" || fail "a rejected line blocked the rest of the ledger"
+env $ENV python3 "$FF" --once || fail "pass after the rejection exited $?"
+grep -q 'rejected for good' "$T/calls.log" && fail "cursor did not advance past the rejected line"
+
+# a rejected gate card is marked announced, so it is not re-sent on every pass forever
+printf 'GATE 2 — review proof for badge\n' > "$T/m1/.delivery/inbox/gate-badge-proof.txt"
+echo "1 400" > "$T/calls.log.fail"
+env $ENV python3 "$FF" --once 2>/dev/null || fail "pass with a rejected gate card exited $?"
+env $ENV python3 "$FF" --once || fail "pass after the rejected gate card exited $?"
+grep -c 'review proof for badge' "$T/calls.log" | grep -qx 0 || fail "rejected gate card re-sent"
+
+# a rejected outbox file is parked in sent/ as .rejected, where the operator can see it
+printf '\x89PNG\r\n\x1a\n' > "$T/m1/.delivery/outbox/2-bad.png"
+echo "1 400" > "$T/calls.log.fail"
+env $ENV python3 "$FF" --once 2>/dev/null || fail "pass with a rejected outbox file exited $?"
+[ -f "$T/m1/.delivery/outbox/sent/2-bad.png.rejected" ] || fail "rejected outbox file not parked as .rejected"
+[ ! -e "$T/m1/.delivery/outbox/2-bad.png" ] || fail "rejected outbox file left to be retried forever"
+
+# a .gitkeep or a still-empty file is not a message: nothing sent, nothing moved
+: > "$T/m1/.delivery/outbox/.gitkeep"; : > "$T/m1/.delivery/outbox/note.txt"
+N=$(grep -c '' "$T/calls.log")
+env $ENV python3 "$FF" --once || fail "pass with an empty outbox file exited $?"
+[ "$(grep -c '' "$T/calls.log")" = "$N" ] || fail "a dot or empty outbox file was sent: $(tail -1 "$T/calls.log")"
+[ -f "$T/m1/.delivery/outbox/.gitkeep" ] || fail ".gitkeep was moved out of the outbox"
+[ -f "$T/m1/.delivery/outbox/note.txt" ] || fail "an empty outbox file was moved"
+
 echo "PASS test_fleet_feed"

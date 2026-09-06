@@ -7,8 +7,9 @@
 # Usage: fleet-gate.sh <machine>|latest APPROVE|REJECT [note]
 set -euo pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-PROJ=${1:?project}; VERDICT=${2:?APPROVE|REJECT}; shift 2; NOTE="${*:-}"
-# the verdict is checked before anything is read, so a typo cannot look like "no gate waiting"
+PROJ=${1:?project}; VERDICT=$(printf %s "${2:?APPROVE|REJECT}" | tr '[:lower:]' '[:upper:]'); shift 2; NOTE="${*:-}"
+# the verdict is checked before anything is read, so a typo cannot look like "no gate waiting";
+# the gate card tells the operator to type `/gate approve <proj>`, so case must not matter
 case "$VERDICT" in
   APPROVE) BODY="APPROVE${NOTE:+ — $NOTE}" ;;
   REJECT)  BODY="REJECT: ${NOTE:-no reason given}" ;;

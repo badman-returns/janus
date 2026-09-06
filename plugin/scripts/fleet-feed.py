@@ -7,7 +7,7 @@ Telegram (ccgram owns getUpdates for this bot). Every pass:
   - a slice dispatched > 30 min ago with a live heartbeat -> "still working", at most hourly
 State: ~/.delivery-machine/feed-state.json. Usage: fleet-feed.py [--once] [--interval 5] [--say TEXT]
 Env: TELEGRAM_BOT_TOKEN, FEED_CHAT_ID, FEED_THREAD_ID (optional), TELEGRAM_API_BASE (tests)."""
-import json, os, sys, time, glob, shutil, mimetypes, uuid, urllib.request, urllib.parse, pathlib
+import json, os, sys, time, glob, shutil, mimetypes, uuid, urllib.request, urllib.parse, urllib.error, pathlib
 
 HOME = pathlib.Path.home()
 STATE = HOME / ".delivery-machine/feed-state.json"
@@ -30,6 +30,7 @@ def save_state(s):
     STATE.parent.mkdir(parents=True, exist_ok=True); STATE.write_text(json.dumps(s))
 
 def api(method, fields, filepath=None, filefield=None):
+    """True = sent, None = rejected for good (Telegram will never take it), False = transient."""
     if not TOKEN or not CHAT: return False
     fields = dict(fields, chat_id=CHAT)
     if THREAD: fields["message_thread_id"] = THREAD
@@ -49,6 +50,11 @@ def api(method, fields, filepath=None, filefield=None):
                 req = urllib.request.Request(url, urllib.parse.urlencode(fields).encode())
             with urllib.request.urlopen(req, timeout=60) as r:
                 return json.loads(r.read().decode()).get("ok", False)
+        except urllib.error.HTTPError as e:
+            if 400 <= e.code < 500 and e.code != 429:   # a body Telegram will never accept: no retry
+                print(f"telegram rejected: {method}: HTTP {e.code}", file=sys.stderr); return None
+            time.sleep(2 ** attempt)                    # 429 and 5xx are transient
+            err = e
         except Exception as e:
             time.sleep(2 ** attempt)
             err = e
@@ -66,32 +72,42 @@ def machines():
 def ledger(proj, d, state):
     p = pathlib.Path(d) / ".delivery/runs.jsonl"
     if not p.exists(): return
-    off = state["offsets"].get(p.as_posix(), 0)
+    key = p.as_posix()
+    off = state["offsets"].get(key, 0)
     data = p.read_bytes()
     if len(data) < off: off = 0
-    for line in data[off:].decode(errors="ignore").splitlines():
-        try: e = json.loads(line)
-        except Exception: continue
-        api("sendMessage", {"text": f"{proj} · {e.get('slice','?')} · {e.get('agent','?')} {e.get('status','?')} · {headline(e.get('note',''))}"})
-    state["offsets"][p.as_posix()] = len(data)
+    for raw in data[off:].splitlines(keepends=True):
+        try: e = json.loads(raw)
+        except Exception: e = None          # junk line: nothing to send, step over it
+        if e is not None:
+            sent = api("sendMessage", {"text": f"{proj} · {e.get('slice','?')} · {e.get('agent','?')} {e.get('status','?')} · {headline(e.get('note',''))}"})
+            if sent is False: break         # transient: cursor stays here, the line is retried next pass
+            # sent is None: rejected for good — step over it so the machine's later lines still flow
+        off += len(raw)                     # advance past lines sent, rejected, or unsendable junk
+    state["offsets"][key] = off
 
 def gates(proj, d, state):
     for f in sorted(glob.glob(f"{d}/.delivery/inbox/gate-*.txt") + glob.glob(f"{d}/.delivery/inbox/ask-*.txt")):
-        key = f"{proj}:{os.path.basename(f)}"
+        try: key = f"{f}:{os.stat(f).st_mtime_ns}"   # a rewritten gate (reject -> rework -> re-gate) is a new card
+        except OSError: continue
         if key in state["announced"]: continue
-        body = pathlib.Path(f).read_text(errors="ignore")[:1500]
+        body = pathlib.Path(f).read_text(errors="ignore")
         if os.path.basename(f).startswith("ask-"):
             try: q = json.loads(body); body = q.get("title", "") + "\n" + "\n".join(f"- {x.get('question')}: {' | '.join(x.get('options', []))}" for x in q.get("questions", []))
             except Exception: pass
+        body = body[:1500]                  # parse the whole ask first; cap only what is sent
         # plain text, no parse_mode: gate bodies are arbitrary operator prose and would break Markdown
-        if api("sendMessage", {"text": f"⏸ {proj} · waiting on you\n{body}\n\nAnswer here: /gate approve {proj}  or  /gate reject {proj} <why>"}):
-            state["announced"].append(key)
+        sent = api("sendMessage", {"text": f"⏸ {proj} · waiting on you\n{body}\n\nAnswer here: /gate approve {proj}  or  /gate reject {proj} <why>"})
+        if sent is None: print(f"telegram rejected the card for {os.path.basename(f)} in {proj}", file=sys.stderr)
+        if sent is not False: state["announced"].append(key)   # sent or rejected: never loop on it
 
 def outbox(proj, d):
     ob = pathlib.Path(d) / ".delivery/outbox"
     if not ob.is_dir(): return
     (ob / "sent").mkdir(exist_ok=True)
-    for f in sorted(p for p in ob.iterdir() if p.is_file() and p.suffix != ".caption"):
+    # a .gitkeep or a still-empty file is not a message: skip it and leave it where it is
+    for f in sorted(p for p in ob.iterdir() if p.is_file() and p.suffix != ".caption"
+                    and not p.name.startswith(".") and p.stat().st_size):
         cap = f.with_name(f.name + ".caption")
         caption = (cap.read_text().strip() if cap.exists() else f"{proj} · {f.name}")[:1024]
         if f.suffix.lower() in (".md", ".txt") and f.stat().st_size < 3500:
@@ -102,8 +118,10 @@ def outbox(proj, d):
                 ok = api("sendMessage", {"text": f"{proj} · {f.name} is over 50 MB and stays on disk: {f}"})
             else:
                 ok = api(method, {"caption": caption}, str(f), FIELD[method])
-        if ok:
-            shutil.move(str(f), ob / "sent" / f.name)
+        if ok or ok is None:
+            if ok is None: print(f"telegram rejected {f.name} in {proj}", file=sys.stderr)
+            # a rejected file is parked as <name>.rejected: visible to the operator, never retried
+            shutil.move(str(f), ob / "sent" / (f.name if ok else f.name + ".rejected"))
             if cap.exists(): cap.unlink()
 
 def silence(proj, d, state):
@@ -122,6 +140,9 @@ def silence(proj, d, state):
 
 def one_pass():
     state = load_state()
+    # a card whose file is gone can never return: drop it, so `announced` stays bounded and cannot
+    # shadow a later card that happens to carry the same name and mtime
+    state["announced"] = [k for k in state["announced"] if os.path.isfile(k.rsplit(":", 1)[0])]
     for proj, d in machines().items():
         ledger(proj, d, state); gates(proj, d, state); outbox(proj, d); silence(proj, d, state)
     save_state(state)
@@ -131,7 +152,7 @@ if __name__ == "__main__":
     if "--say" in sys.argv:                      # one-shot: post this line and exit, no pass
         rest = sys.argv[sys.argv.index("--say") + 1:]
         if not rest: sys.exit("usage: fleet-feed.py --say <text>")
-        ok = api("sendMessage", {"text": rest[0]})
+        ok = api("sendMessage", {"text": " ".join(rest)})
         print("sent" if ok else "not sent"); sys.exit(0 if ok else 1)
     if "--once" in sys.argv: one_pass(); sys.exit(0)
     print("fleet-feed running", flush=True)
