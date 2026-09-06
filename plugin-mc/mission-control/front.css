@@ -64,15 +64,37 @@ canvas.nogl { background:radial-gradient(circle at 50% 50%, var(--acc-dim) 0 38%
 .stateword[data-s="waiting"] { color:var(--warn); }
 .stateword[data-s="muted"], .stateword[data-s="offline"] { opacity:.6; }
 .msgs { display:flex; flex-direction:column; gap:8px; flex:1; overflow:auto; min-height:80px; }
-.msg { border-radius:10px; padding:8px 11px; font-size:12.5px; line-height:1.45; max-width:95%; }
-.msg.you { background:var(--acc-dim); align-self:flex-end; }
+.msg { border-radius:10px; padding:8px 11px; font-size:12.5px; line-height:1.45; max-width:95%; overflow-wrap:anywhere; }
+.msg.you { background:var(--acc-dim); align-self:flex-end; white-space:pre-wrap; }
 .msg.you.partial { color:var(--mut); font-style:italic; }
 .msg.it { background:var(--surface); border:1px solid var(--hair); }
 .msg.bridge { color:var(--mut); font-style:italic; }
 .msg .seat { display:inline; }
-.talkbox { display:flex; gap:6px; }
-.talkbox input { flex:1; min-width:0; font:inherit; font-size:12.5px; padding:6px 9px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--ink); }
-.talkbox input:focus-visible { outline:2px solid var(--acc); outline-offset:-1px; }
+/* the reply's markdown: the reply owns the words, this file owns every size and colour */
+.msg .md > :first-child { margin-top:0; } .msg .md > :last-child { margin-bottom:0; }
+.msg .md p, .msg .md ul, .msg .md ol, .msg .md pre, .msg .md table, .msg .md blockquote { margin:0 0 6px; }
+.msg .md h1, .msg .md h2, .msg .md h3, .msg .md h4 { font-size:12.5px; margin:8px 0 4px; letter-spacing:-0.01em; }
+.msg .md ul, .msg .md ol { padding-left:18px; } .msg .md li { margin:1px 0; }
+.msg .md code { font-family:var(--mono); font-size:11.5px; background:var(--raise); border-radius:3px; padding:0 3px; }
+.msg .md pre { background:var(--term); border:1px solid var(--hair); border-radius:6px; padding:7px 9px; overflow-x:auto; }
+.msg .md pre code { background:none; padding:0; color:var(--term-ink); }
+.msg .md blockquote { border-left:2px solid var(--line); padding-left:8px; color:var(--mut); }
+.msg .md table { border-collapse:collapse; display:block; overflow-x:auto; font-size:12px; }
+.msg .md th, .msg .md td { border:1px solid var(--hair); padding:2px 7px; text-align:left; }
+.msg .md hr { border:0; border-top:1px solid var(--hair); margin:8px 0; }
+.msg .md img { max-width:100%; border-radius:4px; }
+/* what the answer was read out of: one chip per refs: path, click opens it in VS Code */
+.msg .ref { font:inherit; font-family:var(--mono); font-size:10.5px; color:var(--mut); background:var(--raise);
+            border:1px solid var(--hair); border-radius:4px; padding:1px 6px; margin:6px 4px 0 0; cursor:pointer; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.msg .ref:hover { color:var(--ink); border-color:var(--line2); }
+/* asked, not yet answered */
+.msg.think { display:flex; gap:4px; align-items:center; padding:10px 11px; }
+.msg.think i { width:5px; height:5px; border-radius:50%; background:var(--mut2); animation:think 1.2s ease-in-out infinite; }
+.msg.think i:nth-child(2) { animation-delay:.2s; } .msg.think i:nth-child(3) { animation-delay:.4s; }
+@keyframes think { 0%,80%,100% { opacity:.25; } 40% { opacity:1; } }
+.talkbox { display:flex; gap:6px; align-items:flex-end; }
+.talkbox textarea { flex:1; min-width:0; font:inherit; font-size:12.5px; line-height:1.45; padding:6px 9px; border:1px solid var(--line); border-radius:8px; background:var(--surface); color:var(--ink); resize:none; max-height:calc(6 * 1.45em + 14px); overflow-y:auto; }   /* six lines, then it scrolls */
+.talkbox textarea:focus-visible { outline:2px solid var(--acc); outline-offset:-1px; }
 .talkbox button { font:inherit; font-size:12.5px; padding:6px 12px; border:1px solid var(--acc); border-radius:8px; background:var(--acc); color:var(--acc-ink); cursor:pointer; }
 .mic { border-top:1px solid var(--hair); padding-top:10px; display:flex; align-items:center; gap:10px; font-size:12px; color:var(--mut); }
 .mic:empty { display:none; }
@@ -111,4 +133,4 @@ canvas.nogl { background:radial-gradient(circle at 50% 50%, var(--acc-dim) 0 38%
   .win .emp { grid-template-columns:1fr; }
   .msgs { max-height:300px; }
 }
-@media (prefers-reduced-motion: reduce) { .win .card.needs { animation:none; } }
+@media (prefers-reduced-motion: reduce) { .win .card.needs, .msg.think i { animation:none; } }

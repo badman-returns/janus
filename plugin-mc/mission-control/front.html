@@ -1,5 +1,5 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Janus</title><link rel="stylesheet" href="/front.css"><script src="/vendor/three.min.js"></script></head>
+<title>Janus</title><link rel="stylesheet" href="/front.css"><script src="/vendor/three.min.js"></script><script src="/vendor/marked.min.js"></script></head>
 <body>
 <div class="win">
   <div class="bar"><span class="glyph" id="bardot" data-s="idle"></span><span class="name">Janus</span><span id="barword">listening for your name</span><span id="barflags"></span><span class="sp"></span><span class="kbd">⌥ Space to talk</span><span class="kbd">⌘ . stop</span></div>
@@ -14,7 +14,7 @@
       <div class="h">Talk</div>
       <div class="presence"><canvas id="orb" width="140" height="140" aria-label="Janus"></canvas><div class="word stateword" id="stateword" data-s="idle">idle</div></div>
       <div class="msgs" id="talk"></div>
-      <form class="talkbox" id="talkbox"><input id="say" placeholder="Type to Janus, or say its name" autocomplete="off"><button>Send</button></form>
+      <form class="talkbox" id="talkbox"><textarea id="say" rows="1" placeholder="Type to Janus — Enter sends, ⇧Enter a new line"></textarea><button>Send</button></form>
       <div class="mic" id="mic"></div>
     </div>
   </div>

@@ -1,6 +1,8 @@
 // front.js — the one screen and the pill. The page has no state of its own: /api/front on load
-// and on every /events nudge; the loop's stream at 127.0.0.1:8790 for the Talk column, the orb and
-// the title bar. The pill is this same module against pill.html at 44 px.
+// and on every /events nudge. The Talk column is that file thread (talk.jsonl joined to
+// replies/<stem>.md), so it is whole with the voice loop parked; the loop's stream at
+// 127.0.0.1:8790, when it answers, only lends the orb, the state word and a live transcript.
+// The pill is this same module against pill.html at 44 px.
 import { makeOrb } from "/js/orb.js";
 const $ = s => document.querySelector(s), esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 try { if (localStorage.getItem("dm2-theme") === "light") document.documentElement.setAttribute("data-theme", "light"); } catch {}
@@ -10,14 +12,15 @@ const Q = new URLSearchParams(new URL(import.meta.url).search);
 for (const [k, v] of new URLSearchParams(location.search)) Q.set(k, v);
 const PILL = Q.get("pill") === "1";
 const VOICE = "http://127.0.0.1:" + (Q.get("voice") || "8790");
-const WORDS = { idle: "listening for your name", listening: "listening", thinking: "working on it", speaking: "speaking, say anything to interrupt", waiting: "waiting on you", muted: "not listening, /dnd is on", offline: "the voice loop is off" };
-const SHORT = { idle: "idle", listening: "listening", thinking: "thinking", speaking: "speaking", waiting: "waiting on you", muted: "not listening", offline: "off" };
+// "ready" is what a parked loop looks like: the text path does not need it, so its absence is not
+// an error to report — the orb rests and the bar stays quiet.
+const WORDS = { idle: "listening for your name", listening: "listening", thinking: "working on it", speaking: "speaking, say anything to interrupt", waiting: "waiting on you", muted: "not listening, /dnd is on", offline: "ready" };
+const SHORT = { idle: "idle", listening: "listening", thinking: "thinking", speaking: "speaking", waiting: "waiting on you", muted: "not listening", offline: "ready" };
 const orb = makeOrb($("#orb"));
 
-// ---- the loop's stream: orb, state word, title bar, Talk column, pill line ----
-let es = null, youEl = null, youOpen = false, janusEl = null, lastKind = null, about = null;
-const VIA = {};                                          // reply id -> via, kept from show_reply for the spoken path
-function bubble(kind) { const d = document.createElement("div"); d.className = "msg " + kind; $("#talk").appendChild(d); $("#talk").scrollTop = 1e9; return d; }
+// ---- the loop's stream: orb, state word, title bar, the live transcript, pill line ----
+// It never writes the thread: what was said reaches the page as talk.jsonl, like what was typed.
+let es = null, partial = null, about = null;
 // the seat is the machine's, not the name's: /api/front derives it from claude_config_dir.
 // No mark before the fleet has loaded, and none for a machine that is not registered.
 const mark = (el, via) => { if (via) el.insertAdjacentHTML("beforeend", ` <span class="seat">from ${esc(via)}${DATA?.machines.find(m => m.project === via)?.seat === "office" ? ", office seat" : ""}</span>`); };
@@ -30,32 +33,22 @@ function onEvent(e) {
     if (PILL && ["idle", "waiting", "muted", "offline"].includes(e.state)) $("#pilltext").textContent = WORDS[e.state];
   } else if (e.t === "you") {
     if (PILL) { $("#pilltext").textContent = "“" + e.text + (e.final ? "”" : "…"); return; }
-    if (!youOpen) { youEl = bubble("you"); youOpen = true; }
-    youEl.textContent = e.text; youEl.classList.toggle("partial", !e.final); if (e.final) youOpen = false; lastKind = "you";
+    if (!partial) { partial = document.createElement("div"); partial.className = "msg you partial"; $("#talk").appendChild(partial); }
+    partial.textContent = e.text;
+    if (e.final) partial = null;                             // the journal carries it from here
+    $("#talk").scrollTop = 1e9;
   } else if (e.t === "false_alarm") {                      // the mic heard only his own tail: no note, and no trace of the invented words
     if (PILL) return;                                        // the state event that follows sets the pill's text
-    if (youEl && youOpen) youEl.remove(); youEl = null; youOpen = false;
-  } else if (e.t === "janus") {
-    if (PILL) { if (e.text) $("#pilltext").textContent = e.text; return; }
-    if (e.sentences && !e.spoken) { const d = bubble("it"); d.textContent = e.sentences.join(" "); mark(d, e.via); lastKind = "janus"; return; }
-    if (e.sentences) { if (e.via) VIA[e.reply] = e.via; return; }   // spoken: sentence by sentence below, and they carry no via
-    // a bridge is its own bubble: the sentence it was cut in is re-spoken whole, under it, not into it
-    if (e.bridge) { const d = bubble("it"); d.textContent = e.text; d.classList.add("bridge"); lastKind = "bridge"; return; }
-    if (!janusEl || lastKind !== "janus") { janusEl = bubble("it"); janusEl.dataset.reply = e.reply || ""; mark(janusEl, VIA[e.reply]); }
-    const s = document.createElement("span"); s.textContent = (janusEl.childNodes.length ? " " : "") + e.text; janusEl.appendChild(s); lastKind = "janus"; $("#talk").scrollTop = 1e9;
-  }
+    if (partial) partial.remove(); partial = null;
+  } else if (e.t === "janus" && PILL && e.text) $("#pilltext").textContent = e.text;
 }
 function connect() {
   es = new EventSource(VOICE + "/stream");
   es.onmessage = m => { try { onEvent(JSON.parse(m.data)); } catch {} };
-  es.onerror = () => { onEvent({ t: "state", state: "offline" }); es.close(); setTimeout(connect, 5000); };
+  // a parked loop is the normal case, so knock rarely and say nothing about it
+  es.onerror = () => { onEvent({ t: "state", state: "offline" }); es.close(); setTimeout(connect, 30000); };
 }
 connect();
-if (!PILL) $("#talkbox").addEventListener("submit", async ev => {
-  ev.preventDefault(); const text = $("#say").value.trim(); if (!text) return; $("#say").value = "";
-  try { await fetch(VOICE + "/say", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }) }); }
-  catch { await fetch("/api/front/note", { method: "POST", body: JSON.stringify({ project: FLEET, text }) }); onEvent({ t: "you", text, final: true }); }
-});
 // the two keys the title bar advertises. ⌥ Space is ignored while a text field has focus, so
 // typing a space in the Talk box does not start the mic.
 if (!PILL) document.addEventListener("keydown", e => {
@@ -92,19 +85,75 @@ function render(d) {
   }));
   document.querySelectorAll("[data-open]").forEach(a => a.addEventListener("click", async e => { e.preventDefault(); const [project, slice] = a.dataset.open.split("|"); await fetch("/api/front/open", { method: "POST", body: JSON.stringify({ project, slice }) }); }));
   $("#emp").innerHTML = d.reports.length ? d.reports.map(r => `<div><b>${esc(r.name)}</b>${esc(r.line)}</div>`).join("") : `<div class="dim">No employees yet.</div>`;
-  markCards();
+  markCards(); if (!PILL) renderTalk();
 }
 // `needs: <machine> <file>` (PROTOCOL.md): the card is "<machine>/<file>". One token is a bare file.
 function markCards() { const [p, f] = String(about || "").split(/\s+/);
   document.querySelectorAll(".card").forEach(c => c.classList.toggle("needs", !!about && (f ? c.dataset.card === p + "/" + f : c.dataset.card.endsWith("/" + p)))); }
+// ---- the Talk column: the file thread, and the box that adds to it ----
+// marked renders the reply's markdown; raw HTML in a reply is shown as the text it is, never
+// parsed, and a link that is not http(s) loses its href — a reply can carry no markup of its own.
+if (!PILL && window.marked) marked.use({ renderer: { html: t => esc(t.text) } });
+function md(src) {
+  const d = document.createElement("div"); d.className = "md";
+  d.innerHTML = window.marked ? marked.parse(String(src || "")) : esc(src).replace(/\n/g, "<br>");
+  d.querySelectorAll("a").forEach(a => {
+    if (/^https?:/i.test(a.getAttribute("href") || "")) { a.target = "_blank"; a.rel = "noopener noreferrer"; }
+    else a.removeAttribute("href");
+  });
+  return d;
+}
+const when = ts => { const d = new Date(ts || ""); return isNaN(d) ? "" : d.toLocaleString(); };
+const PENDING = [];   // sent, not yet in the journal: the bubble is up before the POST returns
+function replyEl(rep) {
+  const d = document.createElement("div"); d.className = "msg it"; d.title = when(rep.mtime);
+  d.appendChild(md(rep.body));
+  mark(d, rep.headers.via);
+  for (const p of rep.headers.refs || []) {                  // what the answer was read out of
+    const b = document.createElement("button"); b.className = "ref"; b.textContent = p; b.title = "open in VS Code";
+    b.onclick = () => fetch("/api/front/open", { method: "POST", body: JSON.stringify({ project: rep.headers.via || FLEET, file: p }) });
+    d.appendChild(b);
+  }
+  return d;
+}
+function renderTalk() {
+  const el = $("#talk"); if (!el) return;
+  const stick = el.scrollHeight - el.scrollTop - el.clientHeight < 80;   // he scrolled up: stay there
+  const rows = DATA?.talk || [];
+  const said = new Set(rows.map(r => r.text));
+  for (let i = PENDING.length - 1; i >= 0; i--) if (said.has(PENDING[i].text)) PENDING.splice(i, 1);
+  const all = [...rows, ...PENDING];
+  el.textContent = "";
+  all.forEach((r, i) => {
+    const you = document.createElement("div"); you.className = "msg you"; you.textContent = r.text; you.title = when(r.ts);
+    el.appendChild(you);
+    if (r.reply) el.appendChild(replyEl(r.reply));
+    else if (i === all.length - 1) el.insertAdjacentHTML("beforeend", '<div class="msg it think"><i></i><i></i><i></i></div>');
+  });
+  if (partial) el.appendChild(partial);
+  if (stick) el.scrollTop = 1e9;
+}
+if (!PILL) {
+  const say = $("#say"), grow = () => { say.style.height = "auto"; say.style.height = say.scrollHeight + "px"; };
+  say.addEventListener("input", grow);
+  say.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#talkbox").requestSubmit(); } });
+  say.focus();
+  $("#talkbox").addEventListener("submit", async ev => {
+    ev.preventDefault(); const text = say.value.trim(); if (!text) return;
+    say.value = ""; grow();
+    PENDING.push({ ts: new Date().toISOString(), text, reply: null }); renderTalk();
+    try { await fetch("/api/front/note", { method: "POST", body: JSON.stringify({ project: FLEET, text }) }); } catch {}
+    load();
+  });
+}
 async function load() { try { render(await (await fetch("/api/front")).json()); } catch {} }
-if (!PILL) { load(); const ev = new EventSource("/events"); ev.onmessage = m => { if (m.data === "change") load(); }; setInterval(load, 30000); }
+if (!PILL) { load(); const ev = new EventSource("/events"); ev.onmessage = m => { if (m.data === "change") load(); }; setInterval(load, 60000); }
 
 // ---- depths two and three: the machine's own cockpit, then its terminal, in a drawer ----
 function openDrawer(project) {
   const m = DATA?.machines.find(x => x.project === project); if (!m) return;
   $("#drawername").textContent = project; $("#drawer").hidden = false;
-  const cockpit = `http://localhost:${m.port}/`, term = m.ttyd_port ? `http://127.0.0.1:${m.ttyd_port}/?arg=claude` : cockpit;
+  const cockpit = `http://localhost:${m.port}/`, term = m.ttyd_port ? `http://127.0.0.1:${m.ttyd_port}/?arg=${encodeURIComponent("claude@" + project)}` : cockpit;
   $("#drawerframe").src = cockpit; $("#drawerterm").onclick = () => { $("#drawerframe").src = $("#drawerframe").src === term ? cockpit : term; };
 }
 if (!PILL) { $("#drawerclose").onclick = () => { $("#drawer").hidden = true; $("#drawerframe").src = "about:blank"; }; document.addEventListener("keydown", e => { if (e.key === "Escape") $("#drawerclose").click(); }); }

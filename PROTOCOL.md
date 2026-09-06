@@ -76,6 +76,17 @@ from, repo-relative or absolute, space-separated — the front page shows them a
 file, and they are never spoken. A reply with none of these headers is unchanged: prose, nothing
 more.
 
+## `.delivery/talk.jsonl` — the Talk column's thread (the fleet machine only)
+One JSON object per line, appended only:
+```json
+{"ts":"<iso>","stem":"<the note's filename without .txt>","text":"<what was asked>","source":"typed|voice"}
+```
+Written by `POST /api/front/note` for a typed line, by the voice loop's `write_note` for a spoken
+one. The note file itself is deleted when it is answered, so this is the only record of the asking;
+the answer is `replies/<stem>.md`, and the front page renders the two joined — which is why the
+Talk column is whole with the voice loop parked. It lives in the fleet machine's `.delivery/` and
+nowhere else.
+
 ## `.delivery/runs.jsonl` — the ledger
 One JSON object per line, appended only:
 ```json
@@ -283,16 +294,18 @@ routes, so a change here that is not written down is a change nobody can find.
 | `POST /api/service` | `{window, action:"start"\|"stop"\|"restart"}` |
 | `POST /api/session` | a new Claude inside the machine (`dm-session.sh`) |
 | `POST /api/machine` | `{action:"stop"\|"pause"}` — runs `dm-stop.sh` (with `--pause`) from the project root. Anything else is `400` |
-| `GET /api/front` | the front page's whole state: every registered machine's alive/seat/state, its newest gates and asks with their bodies, its last few ledger lines, its newest replies, its checklist progress, and each employee's latest report headline |
+| `GET /api/front` | the front page's whole state: every registered machine's alive/seat/state, its newest gates and asks with their bodies, its last few ledger lines, its newest replies, its checklist progress, and each employee's latest report headline — plus `talk`: the fleet's last 40 exchanges, `{ts, stem, text, source, reply}` with `reply` either `null` or `{headers, body, mtime}` from `replies/<stem>.md` |
 | `POST /api/front/reply`, `POST /api/front/note` | `{project, re, text}` / `{project, text}` — same as `/api/inbox`, addressed at a machine other than the fleet machine itself |
-| `POST /api/front/open` | `{project, slice}` — `code -r` on that slice's worktree if one exists, else the machine's root |
+| `POST /api/front/open` | `{project, slice}` — `code -r` on that slice's worktree if one exists, else the machine's root. `{project, file}` instead opens one file (`code -r -g`), which is what a reply's `refs:` chip sends; a path that resolves outside the machine is `400` |
 | `GET /api/front/proof?project=&file=` | serves a file under that machine's proof dir, with Range support (`206`, or `416` past the end) — what the front page's `<video>` scrubs |
 | `GET /front`, `GET /pill` | the one screen and the pill, served as static pages |
 
 The voice loop's own endpoint, `127.0.0.1:8790` on the fleet machine, is a separate process and not
 part of mission control — no route above reaches it. `GET /stream` (SSE; events `state`, `level`,
 `you`, `janus`, `false_alarm`), `GET /state`, `POST /say`, `POST /listen`, `POST /stop`. The front
-page reads it directly: the orb, the Talk column and the title bar have no other source.
+page reads it directly for the orb, the state word and the live transcript — and for nothing else:
+the Talk column's thread is `talk.jsonl` joined to `replies/`, so a parked loop costs the page
+nothing but the orb's motion (its `EventSource` failing reads as the quiet state `ready`).
 
 ### `/api/state`, field by field
 The names the cockpit's five bands read. `project`, `session`, `now`, `ttyd_port`, `account`,

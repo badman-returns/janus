@@ -241,6 +241,32 @@ const machineFiles = (dir) => {
   const has = (f) => last && fs.existsSync(path.join(dir, proofDirOf(dir), last.slice, f)) ? `${last.slice}/${f}` : null;
   return { items, runs, replies, last, checklist, video: has("proof.mp4"), review: has("review.html") };
 };
+// A reply's header block, the same rule as voice/speech.py's split_header with `refs:` added:
+// `key: value` lines before the first blank line, nothing below it touched. `refs` comes back as
+// a list of paths (the page turns each into a chip).
+const HDR = /^(via|speak|needs|from|refs): /;
+const splitHeader = (text) => {
+  const lines = text.split("\n"); const headers = {}; let i = 0;
+  for (; i < lines.length && HDR.test(lines[i]); i++) {
+    const c = lines[i].indexOf(": "); headers[lines[i].slice(0, c)] = lines[i].slice(c + 2).trim();
+  }
+  if (!i) return { headers: {}, body: text };
+  if (lines[i] !== undefined && lines[i].trim() === "") i++;
+  if (headers.refs) headers.refs = headers.refs.split(/\s+/).filter(Boolean);
+  return { headers, body: lines.slice(i).join("\n") };
+};
+// The Talk column's thread: the journal, newest 40, each line joined to its reply file. The note
+// itself is deleted when the concierge answers it, so talk.jsonl is the only record of the asking.
+const talkOf = (dir) => (readIf(path.join(dir, ".delivery", "talk.jsonl"), 60000) || "")
+  .split("\n").filter(Boolean).slice(-40)
+  .map(l => { try { return JSON.parse(l); } catch { return null; } }).filter(r => r && r.stem)
+  .map(r => {
+    const f = path.join(dir, ".delivery", "replies", r.stem + ".md");
+    const body = readIf(f);
+    if (body === null) return { ...r, reply: null };
+    let mtime = null; try { mtime = fs.statSync(f).mtime.toISOString(); } catch {}
+    return { ...r, reply: { ...splitHeader(body), mtime } };
+  });
 const front = () => {
   const rows = Object.entries(registry()).map(([k, v]) => {
     let alive = false; try { alive = !!execSync(`tmux has-session -t '=${v.session}' 2>/dev/null && echo 1`, { timeout: 2000 }).toString().trim(); } catch {}
@@ -256,7 +282,7 @@ const front = () => {
   // differs (the brain repo is registered as "fleet"). The page matches machines against this.
   let fleetName = path.basename(PROJ_DIR);
   try { fleetName = JSON.parse(fs.readFileSync(path.join(PROJ_DIR, ".delivery", "config.json"), "utf8")).project || fleetName; } catch {}
-  return { now: new Date().toISOString(), fleet: fleetName, machines: rows, reports };
+  return { now: new Date().toISOString(), fleet: fleetName, machines: rows, reports, talk: talkOf(PROJ_DIR) };
 };
 // a file with Range support, for the proof videos a <video> element scrubs
 const serveFile = (req, res, file, mime) => {
@@ -349,7 +375,14 @@ http.createServer((req, res) => {
     readBody(req, 10000, body => {
       try {
         const { project, re, text } = JSON.parse(body);
-        const name = writeInbox(machineDir(project), url.endsWith("reply") ? "reply" : "note", re, text);
+        const dir = machineDir(project), kind = url.endsWith("reply") ? "reply" : "note";
+        const name = writeInbox(dir, kind, re, text);
+        // the thread the Talk column renders. Only the fleet's own (PROTOCOL: talk.jsonl lives in
+        // the fleet's .delivery/), and only notes. The voice loop's write_note appends the same
+        // line with source "voice" when it runs — that lives in voice/, not here.
+        if (kind === "note" && path.resolve(dir) === PROJ_DIR)
+          fs.appendFileSync(path.join(PROJ_DIR, ".delivery", "talk.jsonl"), JSON.stringify(
+            { ts: new Date().toISOString(), stem: name.replace(/\.txt$/, ""), text: String(text), source: "typed" }) + "\n");
         res.writeHead(200, { "content-type": "application/json" }); res.end(JSON.stringify({ ok: true, name }));
       } catch (e) { res.writeHead(400, { "content-type": "application/json" }); res.end(JSON.stringify({ ok: false, error: String(e.message) })); }
     });
@@ -358,7 +391,14 @@ http.createServer((req, res) => {
   if (req.method === "POST" && url === "/api/front/open") {
     readBody(req, 2000, body => {
       try {
-        const { project, slice } = JSON.parse(body); const dir = machineDir(project);
+        const { project, slice, file } = JSON.parse(body); const dir = machineDir(project);
+        // a refs: chip names one file, repo-relative or absolute; it must stay inside the machine
+        if (file) {
+          const base = path.resolve(dir), abs = path.resolve(base, file);
+          if (abs !== base && !abs.startsWith(base + path.sep)) throw new Error("outside the machine");
+          spawn("code", ["-r", "-g", abs], { detached: true, stdio: "ignore" }).unref();
+          res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ ok: true, file: abs }));
+        }
         const wt = sh(`git -C '${dir}' worktree list --porcelain`).split("\n\n")
           .map(b => ({ dir: (b.match(/^worktree (.*)$/m) || [])[1], branch: (b.match(/^branch refs\/heads\/(.*)$/m) || [])[1] }))
           .find(w => w.branch && slice && (w.branch === slice || w.branch.endsWith("/" + slice)));
@@ -458,7 +498,7 @@ http.createServer((req, res) => {
   }
   if (url === "/api/logs") {
     const w = new URL(req.url, "http://x").searchParams.get("w") || "";
-    if (!/^[\w-]+$/.test(w)) { res.writeHead(400); return res.end("bad window"); }
+    if (!/^[\w@.-]+$/.test(w)) { res.writeHead(400); return res.end("bad window"); }   // @ : session windows are claude@<project>
     const out = sh(`tmux capture-pane -p -t ${SESSION}:${w} -S -300 2>/dev/null`);
     res.writeHead(200, { "content-type": "text/plain; charset=utf-8" });
     return res.end(out || "(no output — window may not exist)");
