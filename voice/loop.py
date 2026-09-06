@@ -249,6 +249,7 @@ class Loop:
         self.mic_open = False; self.buf = []; self.silence = 0; self.speech = 0; self.opened_at = 0.0; self.last_partial = 0.0
         self.real = 0                                   # speech frames past the echo settle: the endpointer's count includes his tail
         self.seen_play_end = 0.0                        # the last playback end the wake model was reset for
+        self.pl_hist = [0.0]                            # his own level over the last 400 ms, for the echo judgement
         self.flags = {'dnd': False, 'meeting': False, 'voice_on': False}; self.said_working = False
         self.echo = 0.0; self.echo_rid = None           # how loudly the room hands Janus back his own voice
         self.finishing = False                          # a transcript is in flight: `listening` with a shut mic is expected
@@ -309,12 +310,16 @@ class Loop:
                 rid = self.m.current[0] if self.m.current else None
                 if rid != self.echo_rid: self.echo_rid = rid; self.echo = 0.0; self.speech = 0; wake.reset()   # a new reply, a new room
                 pl = self.player.play_level; r = rms(f)
+                # judged against the loudest of the last 400 ms of his own sound, not this instant's: afplay runs a
+                # little behind the envelope, and the room keeps ringing through a syllable gap — with an instant
+                # level a slow voice read as somebody talking over it at every pause
+                self.pl_hist.append(pl); self.pl_hist = self.pl_hist[-5:]; plh = max(self.pl_hist)
                 if max(wake.predict(f).values()) > wake_threshold(st, 0.0):          # the name interrupts, over the higher bar
                     self.speech = 0; wake.reset(); self.feed('wake')
                 else:                                                               # louder than his own echo, for 320 ms
                     settling = time.time() - self.player.play_t0 < 0.6              # calibrate first, judge after
                     # judged on what we knew before this frame, and never on an estimate we do not have yet
-                    over = self.echo > 0.0 and not settling and vad(f) and r > max(RMS_ON, self.echo * pl * ECHO_MARGIN)
+                    over = self.echo > 0.0 and not settling and vad(f) and r > max(2 * RMS_ON, self.echo * plh * ECHO_MARGIN)
                     if pl > 0.05 and not over:                                      # only his own voice teaches the estimate
                         ratio = r / pl; self.echo = ratio if self.echo == 0.0 else 0.9 * self.echo + 0.1 * ratio
                     self.speech = self.speech + 1 if over else 0                    # ponytail: a voice arriving inside the
