@@ -399,9 +399,12 @@ http.createServer((req, res) => {
         // path that does not resolve is a 404, never an open.
         if (file) {
           const base = fs.realpathSync(dir);
+          // a machine's .delivery may itself be a link to a sibling repo (shop-web's is): that tree is
+          // the machine's own too, so a file under it is inside, once the links are followed
+          const roots = [base]; try { roots.push(fs.realpathSync(path.join(dir, ".delivery"))); } catch {}
           let abs; try { abs = fs.realpathSync(path.resolve(base, file)); }
           catch { res.writeHead(404, { "content-type": "application/json" }); return res.end(JSON.stringify({ ok: false, error: "no such file" })); }
-          if (abs !== base && !abs.startsWith(base + path.sep)) throw new Error("outside the machine");
+          if (!roots.some(r => abs === r || abs.startsWith(r + path.sep))) throw new Error("outside the machine");
           spawn("code", ["-r", "-g", abs], { detached: true, stdio: "ignore" }).unref();
           res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ ok: true, file: abs }));
         }

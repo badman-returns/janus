@@ -14,11 +14,15 @@ fail(){ echo "FAIL test_front_talk: $1"; exit 1; }
 mkdir -p "$T/home/.delivery-machine" "$T/brain/.delivery/inbox" "$T/b/.delivery/inbox"
 echo '{"project":"fleet","services":{}}' > "$T/brain/.delivery/config.json"
 echo '{"project":"b","services":{}}' > "$T/b/.delivery/config.json"
+# machine c keeps its .delivery as a link to a sibling directory, the way the office machine does
+mkdir -p "$T/c" "$T/elsewhere/delivery/replies" "$T/bin"; ln -s "$T/elsewhere/delivery" "$T/c/.delivery"
+echo '{"project":"c","services":{}}' > "$T/c/.delivery/config.json"; echo "answer" > "$T/c/.delivery/replies/x.md"
+printf '#!/usr/bin/env bash\necho "$@" >> "%s/code.log"\n' "$T" > "$T/bin/code"; chmod +x "$T/bin/code"   # the editor, stubbed
 cat > "$T/home/.delivery-machine/registry.json" <<EOF
-{"fleet":{"dir":"$T/brain","session":"dm-fleettalk","port":5,"ttyd_port":6,"started":"x"},"b":{"dir":"$T/b","session":"dm-b","port":3,"ttyd_port":4,"started":"x"}}
+{"fleet":{"dir":"$T/brain","session":"dm-fleettalk","port":5,"ttyd_port":6,"started":"x"},"b":{"dir":"$T/b","session":"dm-b","port":3,"ttyd_port":4,"started":"x"},"c":{"dir":"$T/c","session":"dm-c","port":7,"ttyd_port":8,"started":"x"}}
 EOF
 PORT=$((20000 + RANDOM % 20000))
-HOME="$T/home" node "$SRV" --port "$PORT" --project "$T/brain" >/dev/null 2>&1 & PID=$!; disown
+HOME="$T/home" PATH="$T/bin:$PATH" node "$SRV" --port "$PORT" --project "$T/brain" >/dev/null 2>&1 & PID=$!; disown
 for i in $(seq 1 40); do curl -s "http://127.0.0.1:$PORT/api/front" >/dev/null 2>&1 && break; sleep 0.25; done
 
 N=$(curl -s -X POST -d '{"project":"fleet","text":"what is going on"}' "http://127.0.0.1:$PORT/api/front/note")
@@ -67,6 +71,9 @@ curl -s "http://127.0.0.1:$PORT/front" | grep -q '/vendor/marked.min.js' || fail
 ln -s "$T/brain/.delivery/config.json" "$T/b/link.json"
 [ "$(curl -s -o /dev/null -w '%{http_code}' -X POST -d '{"project":"b","file":"link.json"}' "http://127.0.0.1:$PORT/api/front/open")" = "400" ] || fail "a symlink out of the machine was opened"
 [ "$(curl -s -o /dev/null -w '%{http_code}' -X POST -d '{"project":"b","file":"nothing-here.md"}' "http://127.0.0.1:$PORT/api/front/open")" = "404" ] || fail "a missing file must be 404, not an open"
+# a file under a linked .delivery is inside the machine once the links are followed
+[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST -d '{"project":"c","file":".delivery/replies/x.md"}' "http://127.0.0.1:$PORT/api/front/open")" = "200" ] || fail "a file under a linked .delivery was refused"
+grep -q "elsewhere/delivery/replies/x.md" "$T/code.log" 2>/dev/null || fail "the editor was not handed the real path: $(cat "$T/code.log" 2>/dev/null)"
 
 # the sanitiser: a reply carries words, never markup. js/mdsafe.js is the whole rule, so the check
 # imports it and runs the vendored marked through it — the same two files the page loads.
