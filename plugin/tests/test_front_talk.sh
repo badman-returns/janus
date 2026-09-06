@@ -73,6 +73,7 @@ ln -s "$T/brain/.delivery/config.json" "$T/b/link.json"
 [ "$(curl -s -o /dev/null -w '%{http_code}' -X POST -d '{"project":"b","file":"nothing-here.md"}' "http://127.0.0.1:$PORT/api/front/open")" = "404" ] || fail "a missing file must be 404, not an open"
 # a file under a linked .delivery is inside the machine once the links are followed
 [ "$(curl -s -o /dev/null -w '%{http_code}' -X POST -d '{"project":"c","file":".delivery/replies/x.md"}' "http://127.0.0.1:$PORT/api/front/open")" = "200" ] || fail "a file under a linked .delivery was refused"
+for i in 1 2 3 4 5 6; do grep -q "elsewhere/delivery/replies/x.md" "$T/code.log" 2>/dev/null && break; sleep 0.25; done   # the editor is spawned after the answer
 grep -q "elsewhere/delivery/replies/x.md" "$T/code.log" 2>/dev/null || fail "the editor was not handed the real path: $(cat "$T/code.log" 2>/dev/null)"
 
 # the sanitiser: a reply carries words, never markup. js/mdsafe.js is the whole rule, so the check
