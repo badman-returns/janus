@@ -85,69 +85,112 @@ def transcribe(frames):
 
 # ---- notes and replies ----
 def slugify(s): return re.sub(r'[^a-z0-9-]+', '-', (s or '').lower())[:40].strip('-') or 'voice'
-def write_note(stem, text, cut_stem, cut_index):
+def write_note(stem, text, cut_stem, cut_index, source='voice'):
     d = os.path.join(ROOT, '.delivery', 'inbox'); os.makedirs(d, exist_ok=True)
-    hdr = f"from: {'voice' if '-voice-' in stem else 'typed'} {time.strftime('%Y-%m-%dT%H:%M:%S')}\n"
+    hdr = f"from: {source} {time.strftime('%Y-%m-%dT%H:%M:%S')}\n"
     if cut_stem: hdr += f"interrupted: {cut_stem} at {cut_index}\n"
     with open(os.path.join(d, stem + '.txt'), 'w') as f: f.write(hdr + '\n' + text + '\n')
-    nudge()
+    threading.Thread(target=nudge, daemon=True).start()   # tmux is not allowed to hold the machine's lock
 def nudge():
     """What watch.sh would type on its next poll, typed now: a spoken question cannot wait twenty seconds.
     The line names the machine's pickup skill (`pickup_skill` in config.json, `dm` when unset), so a
     machine with a concierge is asked in its own words instead of being handed a build intent."""
     try:
-        wins = subprocess.run(['tmux', 'list-windows', '-t', SESSION, '-F', '#W'], capture_output=True, text=True).stdout.split()
+        wins = subprocess.run(['tmux', 'list-windows', '-t', SESSION, '-F', '#W'], capture_output=True, text=True, timeout=5).stdout.split()
         w = next((x for x in wins if x.startswith('claude')), None)
         if not w: return
-        subprocess.run(['tmux', 'send-keys', '-t', f'{SESSION}:{w}', f'/{PICKUP} process the pending items in .delivery/inbox', 'Enter'])
+        subprocess.run(['tmux', 'send-keys', '-t', f'{SESSION}:{w}', f'/{PICKUP} process the pending items in .delivery/inbox', 'Enter'], timeout=5)
         open(os.path.join(ROOT, '.delivery', '.nudge'), 'w').write(str(int(time.time())))
     except Exception as e: print('nudge failed:', e, file=sys.stderr)
 def watch_replies(on_reply):
     d = os.path.join(ROOT, '.delivery', 'replies'); os.makedirs(d, exist_ok=True); seen = set(glob.glob(os.path.join(d, '*.md')))
     while True:
-        for p in sorted(glob.glob(os.path.join(d, '*.md')), key=os.path.getmtime):
-            if p in seen: continue
-            seen.add(p)
-            try: txt = open(p, encoding='utf-8').read()
-            except Exception: continue
-            h, body = split_header(txt); on_reply(os.path.basename(p)[:-3], sentences(body), h)
+        try:
+            fresh = []
+            for p in glob.glob(os.path.join(d, '*.md')):
+                if p in seen: continue
+                try: mt = os.path.getmtime(p)
+                except OSError: continue                      # gone between the glob and the stat
+                if time.time() - mt < 0.3: continue           # still being written; read it next pass
+                fresh.append((mt, p))
+            for _, p in sorted(fresh):
+                try: txt = open(p, encoding='utf-8').read()
+                except Exception: continue                    # not readable yet: no `seen`, so we try again
+                seen.add(p)
+                h, body = split_header(txt); on_reply(os.path.basename(p)[:-3], sentences(body), h)
+        except Exception as e: print('reply watcher:', e, file=sys.stderr)
         time.sleep(0.25)
 
-# ---- speaking: render i+1 while i plays; afplay is the process we end to pause ----
+# ---- speaking: one mouth. A worker plays one afplay at a time, so a bridge never talks over a sentence,
+# and it renders i+1 while i plays. afplay is the process we end to pause. ----
 class Player:
     def __init__(self, on_done):
         self.on_done = on_done; self.proc = None; self.cache = {}; self.lock = threading.Lock(); self.gen = 0
         self.play_level = 0.0; self.play_t0 = 0.0     # what the room is being given right now, and since when; 0 when quiet
+        self.inflight = {}; self.rendering = 0        # one tts.sh per wav, and a count for the stranded-speaking watchdog
+        self.q = queue.Queue(); threading.Thread(target=self._worker, daemon=True).start()
     def render(self, key, text):
-        if key in self.cache: return self.cache[key]
+        """The wav for one sentence or bridge, rendered once however many callers want it. None if tts failed."""
+        with self.lock:
+            if key in self.cache: return self.cache[key]
+            ev = self.inflight.get(key); mine = ev is None
+            if mine: ev = self.inflight[key] = threading.Event()
+        if not mine: ev.wait(60); return self.cache.get(key)
         out = os.path.join(BRAIN, 'voice', f'{key[0]}-{key[1]}.wav')
-        subprocess.run(['bash', os.path.join(HERE, 'tts.sh'), text, out, VOICE], capture_output=True)
-        self.cache[key] = out; return out
+        if os.path.exists(out) and os.path.getsize(out) > 44:     # a bridge an earlier run already said; sentence keys are unique
+            with self.lock: self.cache[key] = out; self.inflight.pop(key, None)
+            ev.set(); return out
+        try:
+            self.rendering += 1
+            r = subprocess.run(['bash', os.path.join(HERE, 'tts.sh'), text, out, VOICE], capture_output=True)
+            ok = r.returncode == 0 and os.path.exists(out) and os.path.getsize(out) > 44
+            if not ok: print('tts failed for %r: rc=%s %s' % (text[:40], r.returncode, r.stderr[-200:]), file=sys.stderr)
+            with self.lock:
+                if ok: self.cache[key] = out
+                self.inflight.pop(key, None)
+            return out if ok else None
+        finally:
+            self.rendering -= 1; ev.set()
     @staticmethod
     def envelope(path):
         try:
             w = wave.open(path, 'rb'); sr = w.getframerate(); a = np.frombuffer(w.readframes(w.getnframes()), dtype=np.int16).astype(np.float32) / 32768.0; w.close()
             win = max(1, sr // 30); return [float(np.sqrt(np.mean(a[i:i + win] ** 2))) for i in range(0, len(a), win)]
         except Exception: return []
-    def speak(self, rid, i, sents):
-        self.gen += 1; gen = self.gen
-        def run():
-            path = self.render((rid, i), sents[i])
-            if i + 1 < len(sents): threading.Thread(target=self.render, args=((rid, i + 1), sents[i + 1]), daemon=True).start()
-            env = self.envelope(path); t0 = time.time()
-            with self.lock:
-                if gen != self.gen: return
-                self.proc = subprocess.Popen(['afplay', path]); self.play_t0 = t0
-            while self.proc.poll() is None:
-                k = int((time.time() - t0) * 30); self.play_level = env[k] if k < len(env) else 0.0
-                stream.emit({'t': 'level', 'v': round(min(1.0, self.play_level * 4), 3)}); time.sleep(1 / 30)
-            self.play_level = 0.0; self.play_t0 = 0.0
-            stream.emit({'t': 'level', 'v': 0.0})
-            if gen == self.gen and self.proc.returncode == 0: self.on_done()
-        threading.Thread(target=run, daemon=True).start()
+    def say(self, kind, rid, i, text, sents=None):
+        """Queue one thing to be said. kind 'sentence' advances the machine when it ends; 'bridge' does not."""
+        with self.lock: self.q.put((self.gen, kind, rid, i, text, sents))
+    def busy(self):
+        return bool(self.rendering) or not self.q.empty() or (self.proc is not None and self.proc.poll() is None)
+    def _worker(self):
+        while True:
+            item = self.q.get()
+            try: self._play(*item)
+            except Exception as e: print('playback failed:', e, file=sys.stderr)
+    def _play(self, gen, kind, rid, i, text, sents):
+        if gen != self.gen: return                                  # a pause or a stop passed this by
+        path = self.render((rid, i), text)
+        if path is None:                                            # tts is down: say so on the stream, do not strand
+            stream.emit({'t': 'janus', 'text': '(a sentence could not be rendered)', 'bridge': True})
+            if kind == 'sentence': self.on_done()
+            return
+        if sents and i + 1 < len(sents): threading.Thread(target=self.render, args=((rid, i + 1), sents[i + 1]), daemon=True).start()
+        env = self.envelope(path); t0 = time.time()
+        with self.lock:
+            if gen != self.gen: return
+            self.proc = subprocess.Popen(['afplay', path]); self.play_t0 = t0
+        while self.proc.poll() is None:
+            k = int((time.time() - t0) * 30); self.play_level = env[k] if k < len(env) else 0.0
+            stream.emit({'t': 'level', 'v': round(min(1.0, self.play_level * 4), 3)}); time.sleep(1 / 30)
+        self.play_level = 0.0; self.play_t0 = 0.0
+        stream.emit({'t': 'level', 'v': 0.0})
+        if kind == 'sentence' and gen == self.gen and self.proc.returncode == 0: self.on_done()
     def pause(self):
         with self.lock:
             self.gen += 1
+            while True:
+                try: self.q.get_nowait()
+                except queue.Empty: break
             if self.proc and self.proc.poll() is None: self.proc.terminate()
 
 # ---- the loop: performs the machine's actions; owns the microphone policy ----
@@ -156,29 +199,29 @@ class Loop:
         self.m = Machine(); self.replies = {}; self.player = Player(self.sentence_done); self.lock = threading.RLock()
         self.mic_open = False; self.buf = []; self.silence = 0; self.speech = 0; self.opened_at = 0.0; self.last_partial = 0.0
         self.flags = {'dnd': False, 'meeting': False, 'voice_on': False}; self.said_working = False
-        self.echo = 0.0; self.echo_rid = None; self.bridging = False    # how loudly the room hands Janus back his own voice
+        self.echo = 0.0; self.echo_rid = None           # how loudly the room hands Janus back his own voice
+        self.source = 'voice'; self.idle_speak = 0; self.idle_listen = 0
     def feed(self, ev, **kw):
-        with self.lock: self.act(self.m.feed(ev, **kw))
+        with self.lock:
+            if ev in ('stop', 'offline'): self.player.pause()       # nothing queued outlives a stop
+            if ev in ('speech_end', 'typed'): self.source = 'voice' if ev == 'speech_end' else 'typed'
+            self.act(self.m.feed(ev, **kw))
     def act(self, actions):
         for a in actions:
             k = a[0]
             if k == 'state':
                 info = {x: y for x, y in a[2].items() if x != 'since'}; stream.emit({'t': 'state', 'state': a[1], **info}); self.said_working = False
             elif k == 'open_mic': self.buf = []; self.silence = 0; self.speech = 0; self.opened_at = time.time(); self.last_partial = time.time(); self.mic_open = True
-            elif k == 'close_mic': self.mic_open = False
+            elif k == 'close_mic': self.mic_open = False; stream.emit({'t': 'level', 'v': 0.0})
             elif k == 'pause_playback': self.player.pause()
-            elif k == 'resume_playback': self.player.speak(a[1], a[2], self.replies[a[1]])
-            elif k == 'write_note': write_note(a[1], a[2], a[3], a[4])
+            elif k in ('speak', 'resume_playback'):
+                sents = self.replies[a[1]]
+                if k == 'speak': stream.emit({'t': 'janus', 'reply': a[1], 'i': a[2], 'text': sents[a[2]]})
+                self.player.say('sentence', a[1], a[2], sents[a[2]], sents)
+            elif k == 'write_note': write_note(a[1], a[2], a[3], a[4], self.source)
             elif k == 'show_reply': stream.emit({'t': 'janus', 'reply': a[1], 'sentences': a[2], 'via': a[3], 'spoken': a[4]})
-            elif k == 'speak':
-                stream.emit({'t': 'janus', 'reply': a[1], 'i': a[2], 'text': self.replies[a[1]][a[2]]}); self.player.speak(a[1], a[2], self.replies[a[1]])
-            elif k == 'say_bridge': stream.emit({'t': 'janus', 'text': a[1], 'bridge': True}); threading.Thread(target=self.bridge, args=(a[1],), daemon=True).start()
-    def bridge(self, text):
-        out = os.path.join(BRAIN, 'voice', 'bridge-' + slugify(text) + '.wav')
-        if not os.path.exists(out): subprocess.run(['bash', os.path.join(HERE, 'tts.sh'), text, out, VOICE], capture_output=True)
-        self.bridging = True                     # a bridge plays outside the Player, so no envelope guards it: hold barge-in
-        try: subprocess.run(['afplay', out])
-        finally: self.bridging = False
+            elif k == 'say_bridge':
+                stream.emit({'t': 'janus', 'text': a[1], 'bridge': True}); self.player.say('bridge', 'bridge', slugify(a[1]), a[1])
     def sentence_done(self): self.feed('sentence_done')
     def on_reply(self, stem, sents, h):
         self.replies[stem] = sents
@@ -186,37 +229,46 @@ class Loop:
     def mic_dead(self):
         self.feed('offline'); print('voice: no audio from the microphone; grant Microphone access to the terminal app in System Settings → Privacy & Security', file=sys.stderr)
     def audio(self):
-        wake = make_wake(); vad = make_vad()
+        try: wake = make_wake(); vad = make_vad()
+        except Exception as e:
+            print('voice: the wake model or the vad would not load:', e, file=sys.stderr); self.feed('offline'); return
+        prev = None
         for f in mic_frames(self.mic_dead):
             if self.m.state == 'offline': self.feed('online')
             st = self.m.state
+            if prev == 'speaking' and st != 'speaking': wake.reset()      # no score half-heard over his own voice
+            prev = st
             if self.mic_open:
-                self.buf.append(f); talking = vad(f)
-                stream.emit({'t': 'level', 'v': round(min(1.0, rms(f) * 8), 3)})
-                if talking: self.speech += 1; self.silence = 0
-                else: self.silence += 1
-                now = time.time()
-                if PARTIALS and self.speech > 3 and now - self.last_partial > 1.5:
-                    self.last_partial = now; threading.Thread(target=self.partial, args=(list(self.buf),), daemon=True).start()
-                if (self.speech > 0 and self.silence >= 9) or now - self.opened_at > 20 or (self.speech == 0 and now - self.opened_at > 4):
-                    frames = list(self.buf); had = self.speech > 0; self.mic_open = False
-                    threading.Thread(target=self.finish, args=(frames, had), daemon=True).start()
+                with self.lock:
+                    if not self.mic_open: continue                        # closed under us between the test and the lock
+                    self.buf.append(f); talking = vad(f)
+                    stream.emit({'t': 'level', 'v': round(min(1.0, rms(f) * 8), 3)})
+                    if talking: self.speech += 1; self.silence = 0
+                    else: self.silence += 1
+                    now = time.time()
+                    if PARTIALS and self.speech > 3 and now - self.last_partial > 1.5:
+                        self.last_partial = now; threading.Thread(target=self.partial, args=(list(self.buf),), daemon=True).start()
+                    if (self.speech > 0 and self.silence >= 9) or now - self.opened_at > 20 or (self.speech == 0 and now - self.opened_at > 4):
+                        frames = list(self.buf); had = self.speech > 0; self.mic_open = False
+                        stream.emit({'t': 'level', 'v': 0.0})            # the meter stops with the microphone, not with the transcript
+                        threading.Thread(target=self.finish, args=(frames, had), daemon=True).start()
             elif st == 'speaking':
                 rid = self.m.current[0] if self.m.current else None
                 if rid != self.echo_rid: self.echo_rid = rid; self.echo = 0.0; self.speech = 0; wake.reset()   # a new reply, a new room
                 pl = self.player.play_level; r = rms(f)
-                if pl > 0.05:                    # the voice is sounding: learn how much of it comes back down the microphone
-                    ratio = r / pl; self.echo = ratio if self.echo == 0.0 else 0.9 * self.echo + 0.1 * ratio
                 if max(wake.predict(f).values()) > 0.5:                             # the name always interrupts
                     self.speech = 0; wake.reset(); self.feed('wake')
                 else:                                                               # louder than his own echo, for 320 ms
-                    over = vad(f) and r > max(RMS_ON, self.echo * pl * ECHO_MARGIN)
-                    settling = self.bridging or time.time() - self.player.play_t0 < 0.6      # calibrate first, judge after
-                    self.speech = self.speech + 1 if over and not settling else 0
+                    settling = time.time() - self.player.play_t0 < 0.6              # calibrate first, judge after
+                    # judged on what we knew before this frame, and never on an estimate we do not have yet
+                    over = self.echo > 0.0 and not settling and vad(f) and r > max(RMS_ON, self.echo * pl * ECHO_MARGIN)
+                    if pl > 0.05 and not over:                                      # only his own voice teaches the estimate
+                        ratio = r / pl; self.echo = ratio if self.echo == 0.0 else 0.9 * self.echo + 0.1 * ratio
+                    self.speech = self.speech + 1 if over else 0                    # ponytail: a voice arriving inside the
+                    # 0.6 s settle window still teaches the estimate, so it reads loud; the name is the door for that case
                     if self.speech >= 4: self.speech = 0; self.feed('wake')
-            elif st in ('idle', 'waiting'):
-                scores = wake.predict(f)
-                if max(scores.values()) > 0.5: wake.reset(); self.feed('wake')
+            elif st in ('idle', 'waiting', 'thinking'):                             # the machine takes the name from all three
+                if max(wake.predict(f).values()) > 0.5: wake.reset(); self.feed('wake')
     def partial(self, frames):
         try:
             t = transcribe(frames)
@@ -224,24 +276,33 @@ class Loop:
         except Exception: pass
     def finish(self, frames, had_speech):
         text = ''
-        if had_speech:
-            try: text = transcribe(frames)
-            except Exception as e:
-                print('whisper failed:', e, file=sys.stderr)
-                open(os.path.join(BRAIN, 'voice', 'failed', f'{int(time.time())}.wav'), 'wb').write(wav_bytes(frames))
-                self.act([('say_bridge', 'I could not hear that. The transcriber is down.')])
-        stem = f"note-{int(time.time() * 1000)}-voice-{slugify(text)}"
-        if text: stream.emit({'t': 'you', 'text': text, 'final': True})
-        self.feed('speech_end', text=text, stem=stem)
+        try:
+            if had_speech: text = transcribe(frames)
+        except Exception as e:
+            print('whisper failed:', e, file=sys.stderr)
+            try: open(os.path.join(BRAIN, 'voice', 'failed', f'{int(time.time())}.wav'), 'wb').write(wav_bytes(frames))
+            except Exception: pass
+            self.act([('say_bridge', 'I could not hear that. The transcriber is down.')])
+        finally:                                          # whatever happened, the machine leaves `listening`
+            stem = f"note-{int(time.time() * 1000)}-voice-{slugify(text)}"
+            if text: stream.emit({'t': 'you', 'text': text, 'final': True})
+            self.feed('speech_end', text=text, stem=stem)
     def housekeeping(self):
         while True:
-            for name, fn in (('dnd', 'dnd'), ('meeting', 'meeting'), ('voice_on', 'voice.on')):
-                p = os.path.join(BRAIN, fn); v = os.path.exists(p)
-                if name == 'voice_on' and v and time.time() - os.path.getmtime(p) > 7200: os.remove(p); v = False
-                if v != self.flags[name]: self.flags[name] = v; self.feed('flag', name=name, value=v)
-            age = time.monotonic() - self.m.since
-            if self.m.state == 'thinking' and age > 5 and not self.said_working: self.said_working = True; self.act([('say_bridge', 'Working on it.')])
-            if (self.m.state == 'thinking' and age > 60) or (self.m.state == 'waiting' and age > 600): self.feed('timeout')
+            try:
+                for name, fn in (('dnd', 'dnd'), ('meeting', 'meeting'), ('voice_on', 'voice.on')):
+                    p = os.path.join(BRAIN, fn); v = os.path.exists(p)
+                    if name == 'voice_on' and v and time.time() - os.path.getmtime(p) > 7200: os.remove(p); v = False
+                    if v != self.flags[name]: self.flags[name] = v; self.feed('flag', name=name, value=v)
+                age = time.monotonic() - self.m.since
+                if self.m.state == 'thinking' and age > 5 and not self.said_working: self.said_working = True; self.act([('say_bridge', 'Working on it.')])
+                if (self.m.state == 'thinking' and age > 60) or (self.m.state == 'waiting' and age > 600): self.feed('timeout')
+                # nothing playing and nothing rendering is not `speaking`; a closed microphone is not `listening`
+                self.idle_speak = self.idle_speak + 1 if self.m.state == 'speaking' and not self.player.busy() else 0
+                self.idle_listen = self.idle_listen + 1 if self.m.state == 'listening' and not self.mic_open else 0
+                if self.idle_speak >= 10: self.idle_speak = 0; print('voice: speaking with nothing to play; advancing', file=sys.stderr); self.feed('sentence_done')
+                if self.idle_listen >= 5: self.idle_listen = 0; print('voice: listening with the microphone shut; closing the turn', file=sys.stderr); self.feed('speech_end', text='')
+            except Exception as e: print('housekeeping:', e, file=sys.stderr)
             time.sleep(1)
 
 LOOP = None
