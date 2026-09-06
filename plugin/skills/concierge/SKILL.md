@@ -29,7 +29,7 @@ summarise, file, and answer. `$DM_PLUGIN` is this plugin's root. The brain repo 
 
 ## Reply headers
 A reply file may start with header lines, each `key: value`, then a blank line: `via: <machine>`
-when the content came from another machine's session; `speak: yes|no` to force or forbid speech;
+when the content came from another machine's session; `speak: yes|no` to force or forbid speech — only on a reply to a *spoken* question (`from: voice`); a typed question gets no `speak:` at all;
 `needs: <machine> <gate-or-ask file>` whenever the reply asks the operator for a decision about a
 card; `refs: <path> [<path>…]` — the files the answer was taken from, repo-relative (or absolute),
 space-separated, one line. The front page shows them as chips that open the file in VS Code; the
