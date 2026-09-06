@@ -12,7 +12,11 @@ $TM has-session -t "$SESSION" 2>/dev/null || { echo "machine not running — run
 W=claude; n=1
 while $TM list-windows -t "$SESSION" -F '#W' | grep -qx "$W"; do n=$((n+1)); W="claude-$n"; done
 q(){ printf "%q" "$1"; }
-CMD="COGNEE_PLUGIN_DATASET=$(q "$DS") ${CFG:+CLAUDE_CONFIG_DIR=$(q "${CFG/#\~/$HOME}") }${DM_CLAUDE_BIN:-claude}"
+PRE=""   # keychain secrets in the session too, when the config asks: ccgram's hooks want the bot token
+if [ "$(python3 -c "import json;print(bool(json.load(open('.delivery/config.json')).get('secrets')))")" = True ]; then
+  PRE="eval \"\$(bash '$(dirname "$0")/secrets-env.sh')\"; "
+fi
+CMD="${PRE}COGNEE_PLUGIN_DATASET=$(q "$DS") ${CFG:+CLAUDE_CONFIG_DIR=$(q "${CFG/#\~/$HOME}") }${DM_CLAUDE_BIN:-claude}"
 for a in "$@"; do CMD="$CMD $(q "$a")"; done
 $TM new-window -t "$SESSION" -n "$W" -c "$PWD"
 $TM send-keys -t "$SESSION:$W" "$CMD" Enter
