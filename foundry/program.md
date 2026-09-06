@@ -2,6 +2,11 @@
 
 You are improving Janus, the plugin in `plugin/`. One change per round. Evidence first.
 
+## Where this runs
+The main checkout, `~/code/janus`, on its default branch. Never a linked
+worktree — those are build checkouts parked on somebody's branch, and the loop refuses in one
+(`FOUNDRY_ALLOW_WORKTREE=1` if you ever mean it).
+
 ## Evidence to read
 - `foundry/evidence.md` — written before each night by `brief.sh`'s sibling step: yesterday's
   ledger lines that ended in `failed`, gates rejected with notes, `wiki/method/corrections.md` lines
