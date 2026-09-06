@@ -71,7 +71,9 @@ May start with header lines, each `key: value`, then a blank line: `via: <machin
 content came from another machine's session and is only relayed here; `speak: yes|no` forces or
 forbids the voice loop speaking it regardless of the standing policy; `needs: <machine> <gate-or-ask
 file>` means the reply ends in a question only the operator can answer, and puts the loop into its
-`waiting` state about that card. A reply with none of these headers is unchanged: prose, nothing
+`waiting` state about that card; `refs: <path> [<path>…]` names the files the answer was taken
+from, repo-relative or absolute, space-separated — the front page shows them as chips that open the
+file, and they are never spoken. A reply with none of these headers is unchanged: prose, nothing
 more.
 
 ## `.delivery/runs.jsonl` — the ledger
@@ -212,7 +214,10 @@ the plugin, and is never committed.
 
 ## tmux
 Session `dm-<project>`. Window names are the contract: `control`, one per service, `mission`,
-`watch`, `ttyd`, `claude`, `claude-2`… Anything long-lived goes through `dm-run.sh <window> <cmd>`.
+`watch`, `ttyd`, `claude@<project>`, `claude-2@<project>`… A Claude session window carries the
+project in its name because the Telegram bridge names each topic after the window: one topic per
+machine, named after it. Consumers match the `claude` prefix, never the whole name.
+Anything long-lived goes through `dm-run.sh <window> <cmd>`.
 Dashboard tiles are windows; `ttyd ?arg=<window>` attaches a private grouped view to one.
 
 `bridge` is a tmux session that holds linked copies of every machine's `claude*` window

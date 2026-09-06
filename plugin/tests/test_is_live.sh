@@ -14,6 +14,6 @@ bash "$S" || fail "fresh heartbeat not live"
 old=$(python3 -c "import datetime;print((datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(seconds=300)).strftime('%Y-%m-%dT%H:%M:%SZ'))")
 echo "{\"sid\":\"a\",\"ts\":\"$old\"}" > .delivery/agents/a.json
 bash "$S" && fail "5-minute-old heartbeat reported live"
-tmux new-session -d -s dm-livetest -n claude 'sleep 30'
-bash "$S" || fail "claude tmux window not live"
+tmux new-session -d -s dm-livetest -n claude@livetest 'sleep 30'
+bash "$S" || fail "claude@livetest tmux window not live"
 echo "PASS test_is_live"

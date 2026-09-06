@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# bridge-link.sh links every claude* window of every registered machine into session `bridge`, once.
+# bridge-link.sh links every claude* window (now claude@<project>, claude-2@<project>) of every registered machine into session `bridge`, once.
 set -u
 unset DM_BRIDGE   # this test is the linker itself, on its own tmux server; a suite-wide DM_BRIDGE=0 must not switch it off
 HERE="$(cd "$(dirname "$0")" && pwd)"; BL="$HERE/../scripts/bridge-link.sh"
@@ -12,21 +12,21 @@ cat > "$T/home/.delivery-machine/registry.json" <<EOF
  "dead":{"dir":"$T/p1","session":"dm-dead","port":5,"ttyd_port":6,"started":"x"}}
 EOF
 tmux $TMUX_SOCK new-session -d -s dm-p1 -n control 'sleep 300'
-tmux $TMUX_SOCK new-window -d -t dm-p1 -n claude 'sleep 300'
-tmux $TMUX_SOCK new-window -d -t dm-p1 -n claude-2 'sleep 300'
-tmux $TMUX_SOCK new-session -d -s dm-p2 -n claude 'sleep 300'
+tmux $TMUX_SOCK new-window -d -t dm-p1 -n claude@p1 'sleep 300'
+tmux $TMUX_SOCK new-window -d -t dm-p1 -n claude-2@p1 'sleep 300'
+tmux $TMUX_SOCK new-session -d -s dm-p2 -n claude@p2 'sleep 300'
 HOME="$T/home" bash "$BL" || fail "bridge-link exited $?"
 tmux $TMUX_SOCK has-session -t bridge || fail "no bridge session"
 N=$(tmux $TMUX_SOCK list-windows -t bridge -F '#{window_id}' | sort -u | wc -l | tr -d ' ')
 [ "$N" = 4 ] || fail "expected 4 windows in bridge (3 linked + __main__), got $N: $(tmux $TMUX_SOCK list-windows -t bridge -F '#W')"
-W1=$(tmux $TMUX_SOCK list-windows -t dm-p1 -F '#{window_id} #W' | awk '$2=="claude"{print $1}')
-tmux $TMUX_SOCK list-windows -t bridge -F '#{window_id}' | grep -qx "$W1" || fail "dm-p1:claude not linked"
+W1=$(tmux $TMUX_SOCK list-windows -t dm-p1 -F '#{window_id} #W' | awk '$2=="claude@p1"{print $1}')
+tmux $TMUX_SOCK list-windows -t bridge -F '#{window_id}' | grep -qx "$W1" || fail "dm-p1:claude@p1 not linked"
 HOME="$T/home" bash "$BL" || fail "second run failed"
 N2=$(tmux $TMUX_SOCK list-windows -t bridge -F '#{window_id}' | sort -u | wc -l | tr -d ' ')
 [ "$N2" = 4 ] || fail "not idempotent: $N2 windows after second run"
-tmux $TMUX_SOCK kill-window -t dm-p1:claude-2
+tmux $TMUX_SOCK kill-window -t 'dm-p1:claude-2@p1'
 HOME="$T/home" bash "$BL" || fail "third run failed"
-tmux $TMUX_SOCK list-windows -t bridge -F '#W' | grep -qx 'claude-2' && fail "dead window still listed in bridge"
+tmux $TMUX_SOCK list-windows -t bridge -F '#W' | grep -qx 'claude-2@p1' && fail "dead window still listed in bridge"
 
 # one window at two indices (the state a live machine can be in) still links exactly once.
 # bridge is rebuilt first so the duplicate is linked fresh — otherwise the previous run's

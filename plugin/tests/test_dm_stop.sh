@@ -64,8 +64,8 @@ printf '%s' "$render" | grep -q "stopped" || fail "picker does not show the stat
 if command -v tmux >/dev/null 2>&1; then
   tmux new-session -d -s "dm-$PROJ" -n control 2>/dev/null || fail "could not create a test session"
   tmux new-window -t "dm-$PROJ" -n web
-  tmux new-window -t "dm-$PROJ" -n claude 'sleep 300'
-  WID=$(tmux list-windows -t "dm-$PROJ" -F '#{window_id} #W' | awk '$2=="claude"{print $1}')
+  tmux new-window -t "dm-$PROJ" -n "claude@$PROJ" 'sleep 300'
+  WID=$(tmux list-windows -t "dm-$PROJ" -F '#{window_id} #W' | awk '$2=="claude@'"$PROJ"'"{print $1}')
   tmux new-session -d -s "$SCRATCH" -n keep 'sleep 300' || fail "could not create $SCRATCH"
   tmux link-window -d -s "dm-$PROJ:$WID" -t "$SCRATCH:" || fail "could not link $WID into $SCRATCH"
   out=$(DM_REGISTRY="$REG" bash "$S") || { tmux kill-session -t "dm-$PROJ" 2>/dev/null; fail "exit $? with a live session"; }

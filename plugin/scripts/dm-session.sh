@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Open a new Claude session INSIDE the machine (window claude, claude-2, …) so
-# mission control gets a terminal tile for it. Prints the window name.
+# Open a new Claude session INSIDE the machine (window claude@<project>, claude-2@<project>, …)
+# so mission control gets a terminal tile for it. Prints the window name. The project is in the
+# name because ccgram names each Telegram topic after the window: one topic per machine, named
+# after it. Every consumer matches the `claude` prefix.
 # Usage: dm-session.sh [claude args…]   (from project root)
 set -euo pipefail
 PROJ=$(python3 -c "import json;print(json.load(open('.delivery/config.json'))['project'])")
@@ -9,8 +11,8 @@ DS=$(python3 -c "import json;c=json.load(open('.delivery/config.json'));print(c.
 SESSION="dm-$PROJ"
 TM="tmux ${TMUX_SOCK:-}"
 $TM has-session -t "$SESSION" 2>/dev/null || { echo "machine not running — run orchestrator.sh first" >&2; exit 1; }
-W=claude; n=1
-while $TM list-windows -t "$SESSION" -F '#W' | grep -qx "$W"; do n=$((n+1)); W="claude-$n"; done
+W="claude@$PROJ"; n=1
+while $TM list-windows -t "$SESSION" -F '#W' | grep -qx "$W"; do n=$((n+1)); W="claude-$n@$PROJ"; done
 q(){ printf "%q" "$1"; }
 CMD="COGNEE_PLUGIN_DATASET=$(q "$DS") ${CFG:+CLAUDE_CONFIG_DIR=$(q "${CFG/#\~/$HOME}") }${DM_CLAUDE_BIN:-claude}"
 for a in "$@"; do CMD="$CMD $(q "$a")"; done
