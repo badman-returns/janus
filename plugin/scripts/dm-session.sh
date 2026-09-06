@@ -12,7 +12,7 @@ SESSION="dm-$PROJ"
 TM="tmux ${TMUX_SOCK:-}"
 $TM has-session -t "$SESSION" 2>/dev/null || { echo "machine not running — run orchestrator.sh first" >&2; exit 1; }
 W="claude@$PROJ"; n=1
-while $TM list-windows -t "$SESSION" -F '#W' | grep -qx "$W"; do n=$((n+1)); W="claude-$n@$PROJ"; done
+while $TM list-windows -t "$SESSION" -F '#W' | grep -qxF "$W"; do n=$((n+1)); W="claude-$n@$PROJ"; done   # -F: the project name is a literal, not a pattern
 q(){ printf "%q" "$1"; }
 CMD="COGNEE_PLUGIN_DATASET=$(q "$DS") ${CFG:+CLAUDE_CONFIG_DIR=$(q "${CFG/#\~/$HOME}") }${DM_CLAUDE_BIN:-claude}"
 for a in "$@"; do CMD="$CMD $(q "$a")"; done
