@@ -9,3 +9,4 @@ foundry/log.md
 voice/.venv/
 __pycache__/
 proof/**/review.html
+.enola/
