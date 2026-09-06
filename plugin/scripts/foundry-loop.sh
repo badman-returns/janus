@@ -30,9 +30,9 @@ gitdir(){ (cd "$(git rev-parse "$1")" && pwd -P); }
 MAIN=$(git rev-parse --show-toplevel)          # every path below hangs off this, never off cwd
 WT=${FOUNDRY_WT:-$HOME/.brain/foundry/wt}
 # compared as real paths: MAIN comes back from git resolved, a FOUNDRY_WT may be spelled through a symlink
-WTR=$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "${WT:-/}")
+WTR=$(python3 -c 'import os,sys;print(os.path.realpath(sys.argv[1]))' "$WT") && [ -n "$WTR" ] \
+  || { echo "cannot resolve FOUNDRY_WT '$WT' (python3 missing?) — refusing rather than guessing where rm -rf points" >&2; exit 2; }
 case "$WTR" in "$MAIN"|"$MAIN"/*) echo "FOUNDRY_WT must be a path outside the main checkout, got '$WT'" >&2; exit 2;; esac
-[ -n "$WT" ] || { echo "FOUNDRY_WT is empty" >&2; exit 2; }
 LOG="$MAIN/foundry/log.md"; ALOG="$MAIN/foundry/agent.log"
 # Branches are read from MAIN's refs, not its HEAD: the operator may be on a feature branch or
 # detached, and the foundry still builds from the default branch.
