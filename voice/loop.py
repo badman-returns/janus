@@ -34,7 +34,7 @@ SESSION = 'dm-' + CONF.get('project', 'fleet'); PICKUP = CONF.get('pickup_skill'
 def _mc_port():
     try:
         reg = json.load(open(os.path.expanduser('~/.delivery-machine/registry.json')))
-        return reg.get(CONF.get('project', 'fleet'), {}).get('port') or next(iter(reg.values()))['port']
+        return reg.get(CONF.get('project', 'fleet'), {}).get('port')      # this machine's cockpit only; another's would be a guess
     except Exception: return None
 MC_PORT = _mc_port()
 ALLOW = {f'http://localhost:{MC_PORT}', f'http://127.0.0.1:{MC_PORT}'} if MC_PORT else set()
