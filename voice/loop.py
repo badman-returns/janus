@@ -308,7 +308,7 @@ class Loop:
                         threading.Thread(target=self.finish, args=(frames, had), daemon=True).start()
             elif st == 'speaking':
                 rid = self.m.current[0] if self.m.current else None
-                if rid != self.echo_rid: self.echo_rid = rid; self.echo = 0.0; self.speech = 0; wake.reset()   # a new reply, a new room
+                if rid != self.echo_rid: self.echo_rid = rid; self.speech = 0; wake.reset()   # a new reply; the room's echo ratio is kept — it was learned on this room, and a fresh 0.6 s estimate judged the first sentence wrong
                 pl = self.player.play_level; r = rms(f)
                 # judged against the loudest of the last 400 ms of his own sound, not this instant's: afplay runs a
                 # little behind the envelope, and the room keeps ringing through a syllable gap — with an instant
@@ -317,7 +317,7 @@ class Loop:
                 if max(wake.predict(f).values()) > wake_threshold(st, 0.0):          # the name interrupts, over the higher bar
                     self.speech = 0; wake.reset(); self.feed('wake')
                 else:                                                               # louder than his own echo, for 320 ms
-                    settling = time.time() - self.player.play_t0 < 0.6              # calibrate first, judge after
+                    settling = time.time() - self.player.play_t0 < (0.6 if self.echo > 0.0 else 1.2)   # calibrate first, judge after; longer the very first time
                     # judged on what we knew before this frame, and never on an estimate we do not have yet
                     over = self.echo > 0.0 and not settling and vad(f) and r > max(2 * RMS_ON, self.echo * plh * ECHO_MARGIN)
                     if pl > 0.05 and not over:                                      # only his own voice teaches the estimate
