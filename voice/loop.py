@@ -24,6 +24,8 @@ WHISPER = C.get('whisper_url', 'http://127.0.0.1:8178/v1/audio/transcriptions')
 VAD_MODE = C.get('vad', 'silero'); RMS_ON = float(C.get('vad_rms', 0.015))    # ponytail: one knob, tune at the desk
 ECHO_MARGIN = float(C.get('echo_margin', 1.8))    # how far over its own echo a voice must be to be someone else
 WAKE_HI = float(C.get('wake_threshold_speaking', 1.01))  # the door while he speaks: shut. The model was trained on Kokoro voices, so his own voice is its best match
+END_SILENCE = float(C.get('end_silence', 1.6))          # seconds of quiet that end a turn: a breath mid-sentence is shorter, a finished thought longer
+MAX_TURN = float(C.get('max_turn', 45))                  # a turn never runs longer than this
 WAKE_SETTLE = float(C.get('wake_settle', 3.0))           # how long after his last sound the room is still his: the model's scores lag the sound by up to a second
 MIN_SPEECH = float(C.get('min_speech', 0.4))             # a turn with less speech than this heard nobody
 THINK_TIMEOUT = float(C.get('think_timeout', 120))       # the real concierge answers in 27-34 s
@@ -303,7 +305,8 @@ class Loop:
                     else: self.silence += 1
                     if PARTIALS and self.speech > 3 and now - self.last_partial > 1.5:
                         self.last_partial = now; threading.Thread(target=self.partial, args=(list(self.buf),), daemon=True).start()
-                    if (self.speech > 0 and self.silence >= 9) or now - self.opened_at > 20 or (self.speech == 0 and now - self.opened_at > 4):
+                    # the turn ends after END_SILENCE of quiet once he has spoken (0.72 s cut him off mid-thought), at MAX_TURN, or after 4 s of nothing
+                    if (self.speech > 0 and self.silence * FRAME / SR >= END_SILENCE) or now - self.opened_at > MAX_TURN or (self.speech == 0 and now - self.opened_at > 4):
                         frames = list(self.buf); had = self.real * FRAME / SR >= MIN_SPEECH; self.mic_open = False; self.finishing = True
                         stream.emit({'t': 'level', 'v': 0.0})            # the meter stops with the microphone, not with the transcript
                         threading.Thread(target=self.finish, args=(frames, had), daemon=True).start()
