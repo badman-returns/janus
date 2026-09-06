@@ -23,7 +23,7 @@ VOICE = C.get('kokoro_voice', os.environ.get('KOKORO_VOICE', 'am_michael')); PAR
 WHISPER = C.get('whisper_url', 'http://127.0.0.1:8178/v1/audio/transcriptions')
 VAD_MODE = C.get('vad', 'silero'); RMS_ON = float(C.get('vad_rms', 0.015))    # ponytail: one knob, tune at the desk
 ECHO_MARGIN = float(C.get('echo_margin', 1.8))    # how far over its own echo a voice must be to be someone else
-WAKE_HI = float(C.get('wake_threshold_speaking', 0.8))   # his own tail scores over 0.5 on the wake model
+WAKE_HI = float(C.get('wake_threshold_speaking', 1.01))  # the door while he speaks: shut. The model was trained on Kokoro voices, so his own voice is its best match
 WAKE_SETTLE = float(C.get('wake_settle', 1.5))           # how long after his last sound the room is still his
 MIN_SPEECH = float(C.get('min_speech', 0.4))             # a turn with less speech than this heard nobody
 THINK_TIMEOUT = float(C.get('think_timeout', 120))       # the real concierge answers in 27-34 s
@@ -76,8 +76,9 @@ def mic_frames(on_dead):
 def rms(f): return float(np.sqrt(np.mean((f.astype(np.float32) / 32768.0) ** 2)) + 1e-9)
 def wake_threshold(state, since_play_end):
     """How sure the wake model has to be. While Janus speaks, and for wake_settle after his last sound,
-    his own tail scores over 0.5 — so the door is WAKE_HI there and 0.5 everywhere else. The name still
-    interrupts; a tail does not."""
+    his own voice is what the model was trained on — so the door is WAKE_HI there (over 1: shut) and
+    0.5 everywhere else. While he speaks, the operator interrupts by talking over him (the echo rule)
+    or with the key; the name opens the door again once the room is quiet."""
     return WAKE_HI if state == 'speaking' or since_play_end < WAKE_SETTLE else 0.5
 JUNK = {'thank you', 'thanks', 'thanks for watching', 'you', 'bye', 'so', 'okay', 'hmm', 'uh'}
 def false_alarm(text, had_speech):

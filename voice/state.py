@@ -15,6 +15,7 @@ class Machine:
         self.about = None          # the card a waiting state is about
         self.solicited = False     # the turn began with the operator speaking or pressing the key
         self.empty_turns = 0       # listening opened and closed with nothing said (false triggers)
+        self.false_in_row = 0      # false alarms since the current reply started: two, and the reply is dropped
 
     def _go(self, s, out, **kw):
         if s != self.state:
@@ -47,10 +48,15 @@ class Machine:
             if not text:
                 self.empty_turns += 1
                 if self.paused:
+                    self.false_in_row += 1
+                    if self.false_in_row > 2:                          # he keeps hearing himself: stop the reply, not the room
+                        self.paused = None; self.false_in_row = 0
+                        out.append(('say_bridge', 'I keep hearing myself. Stopping here.')); self._go(self._rest(), out); return out
                     self.current = self.paused; self.paused = None      # heard nobody: back to the sentence it cut
                     out.append(('say_bridge', 'Back to where I was.')); out.append(('resume_playback', self.current[0], self.current[2])); self._go('speaking', out)
                 else: self._go(self._rest(), out)
                 return out
+            self.false_in_row = 0
             stem = a.get('stem') or f"note-{int(self.now()*1000)}-voice"
             self.pending_note = stem
             out.append(('write_note', stem, text, self.paused[0] if self.paused else None, self.paused[2] if self.paused else None))
@@ -181,6 +187,10 @@ def selftest():
     o = m.feed('speech_end', text='')                                          # a false alarm: nothing written, it resumes
     assert not [x for x in o if x[0] == 'write_note'] and ('say_bridge', 'Back to where I was.') in o
     assert ('resume_playback', 'F', 0) in o and m.state == 'speaking'
+    # a third false alarm on the same reply drops it: the room is not a hall of mirrors
+    for _ in range(2):
+        m.feed('wake'); o = m.feed('speech_end', text='')
+    assert m.state != 'speaking' and m.paused is None and ('say_bridge', 'I keep hearing myself. Stopping here.') in o, (m.state, o)
     m.feed('stop')
     print('PASS state selftest')
 
