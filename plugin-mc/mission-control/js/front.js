@@ -28,6 +28,9 @@ function onEvent(e) {
     if (PILL) { $("#pilltext").textContent = "“" + e.text + (e.final ? "”" : "…"); return; }
     if (!youOpen) { youEl = bubble("you"); youOpen = true; }
     youEl.textContent = e.text; youEl.classList.toggle("partial", !e.final); if (e.final) youOpen = false; lastKind = "you";
+  } else if (e.t === "false_alarm") {                      // the mic heard only his own tail: no note, and no trace of the invented words
+    if (PILL) return;                                        // the state event that follows sets the pill's text
+    if (youEl && youOpen) youEl.remove(); youEl = null; youOpen = false;
   } else if (e.t === "janus") {
     if (PILL) { if (e.text) $("#pilltext").textContent = e.text; return; }
     // the seat is the machine's, not the name's: /api/front derives it from claude_config_dir.

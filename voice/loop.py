@@ -309,7 +309,8 @@ class Loop:
                     # 0.6 s settle window still teaches the estimate, so it reads loud; the name is the door for that case
                     if self.speech >= 4: self.speech = 0; self.feed('wake')
             elif st in ('idle', 'waiting', 'thinking'):                             # the machine takes the name from all three
-                if max(wake.predict(f).values()) > wake_threshold(st, time.time() - self.player.play_end):
+                # the door is high while any sound of his plays (a bridge during thinking, the whisper-down line at rest), not only in `speaking`
+                if max(wake.predict(f).values()) > wake_threshold(st, 0.0 if self.player.play_t0 else time.time() - self.player.play_end):
                     wake.reset(); self.feed('wake')
     def partial(self, frames):
         try:
