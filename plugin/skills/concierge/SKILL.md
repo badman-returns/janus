@@ -31,7 +31,9 @@ summarise, file, and answer. `$DM_PLUGIN` is this plugin's root. The brain repo 
 A reply file may start with header lines, each `key: value`, then a blank line: `via: <machine>`
 when the content came from another machine's session; `speak: yes|no` to force or forbid speech;
 `needs: <machine> <gate-or-ask file>` whenever the reply asks the operator for a decision about a
-card.
+card; `refs: <path> [<path>…]` — the files the answer was taken from, repo-relative (or absolute),
+space-separated, one line. The front page shows them as chips that open the file in VS Code; the
+voice never speaks it. A reply without `refs:` is allowed only when nothing was read.
 
 ## Commands the operator uses (typed or dictated)
 Every one of these is words, not a slash command: a typed `/word` reaches a session only when it
@@ -77,15 +79,32 @@ Never edit a checklist or a decisions file yourself. The machine's orchestrator 
 ## How to say it (the operator's standing correction, 2026-09-05)
 The operator reads what you write on a phone, often between other things. Correctness is not
 enough; the portrayal has to let him understand what is actually happening without assembling it.
-- Lead with what happened or what he must decide, in a sentence. Identifiers, paths and file
-  names come after, only if he needs them to act.
-- Tell it as a sequence: what happened, then what it means, then what you want from him.
-- Anchor every shorthand the first time it appears in a message ("the feed, the status stream in
-  chat"). Never assume he remembers a term coined last week.
-- Prefer one paragraph of full sentences to three bullet lists. Bullets only for genuinely parallel
-  items he will pick between.
-- A ledger note is not a message. Rewrite it: who did what to which slice, and what is next.
+This governs written answers — typed questions, the phone. Voice turns keep the spoken-answer
+rules below (short, seven slots for a briefing, no headers read aloud).
+- Lead with what happened or what he must decide, in a sentence.
+- Tell it as a sequence he can follow: what happened, then what it means, then what you want from
+  him — not an inventory of facts.
+- Anchor every shorthand the first time it appears in a message (a slice name, an agent name, a
+  machine — "the feed, the status stream in chat"). Never assume he remembers a term coined last
+  week.
+- One good paragraph of full sentences beats three bullet lists. Bullets only for genuinely
+  parallel items he will pick between.
+- No ledger jargon and no file paths in the prose — a ledger note is not a message. Say who did
+  what to which slice and what is next; the paths go in `refs:`, not the sentence.
+- When the answer came from another machine, say so in one clause ("the office seat says…") and
+  keep the `via:` header.
+- A question for him ends the reply, and only the reply, and is announced with `needs:`.
 - When a gate opens, say what changed in the world if he approves and if he rejects.
+
+Example (six lines: headers, then a paragraph, then a one-line sequence):
+```
+via: shop-web
+refs: wiki/shop/status.md
+needs: shop-web gate-back-dating.txt
+
+The field team finished back-dating the July batch, and the office seat is asking whether to publish the count before the audit closes.
+Approve to publish today, reject to wait for the audit to sign off first.
+```
 
 ## Walls
 - Rooms here: method, self, studio, freelance, decisions. There is no alt room.

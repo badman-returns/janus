@@ -5,10 +5,11 @@ numbers stay. --selftest is the contract. stdlib only."""
 import re, sys
 
 def split_header(text):
-    """Header lines `via: …`, `speak: …`, `needs: …`, `from: …` before the first blank line.
-    Returns (headers, body). A reply with no header block comes back unchanged."""
+    """Header lines `via: …`, `speak: …`, `needs: …`, `from: …`, `refs: …` before the first blank
+    line. Returns (headers, body). A reply with no header block comes back unchanged. `refs:` (the
+    files an answer was taken from) is never spoken — callers read it, sentences() never sees it."""
     lines = text.split('\n'); hdr = {}; i = 0
-    while i < len(lines) and re.match(r'^(via|speak|needs|from): ', lines[i]):
+    while i < len(lines) and re.match(r'^(via|speak|needs|from|refs): ', lines[i]):
         k, v = lines[i].split(': ', 1); hdr[k] = v.strip(); i += 1
     if not hdr: return {}, text
     if i < len(lines) and lines[i].strip() == '': i += 1
@@ -35,6 +36,9 @@ def selftest():
     assert s == ['Two things.', 'The field team finished back-dating; see the video.', 'Count went to 2!', 'Want the video?'], s
     assert split_header('plain text') == ({}, 'plain text')
     assert sentences('') == []
+    h2, b2 = split_header('refs: wiki/shop/status.md raw/meetings/x.md\n\nDone.')
+    assert h2 == {'refs': 'wiki/shop/status.md raw/meetings/x.md'}, h2
+    assert b2 == 'Done.', b2
     print('PASS speech selftest')
 
 if __name__ == '__main__':
