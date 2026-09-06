@@ -51,7 +51,8 @@ fi
 # seat (employer work asks first), and only where the branch already has an upstream — `gh pr create`
 # pushes a branch the remote has never seen, and nothing here may push. GH_BIN points a test at a stub.
 GH=${GH_BIN:-gh}
-SEAT=$(python3 -c "import json;print('office' if 'claude-alt' in (json.load(open('.delivery/config.json')).get('claude_config_dir') or '') else 'personal')" 2>/dev/null || echo personal)
+# an unreadable config reads as office: the gate that could publish must fail closed
+SEAT=$(python3 -c "import json;print('office' if 'claude-alt' in (json.load(open('.delivery/config.json')).get('claude_config_dir') or '') else 'personal')" 2>/dev/null || echo office)
 if command -v "$GH" >/dev/null 2>&1 && git remote get-url origin >/dev/null 2>&1 && [ -s "$PROOF/$SLICE/review.md" ]; then
   if [ "$SEAT" = office ]; then
     echo "no PR: office seat — publishing employer work asks first"

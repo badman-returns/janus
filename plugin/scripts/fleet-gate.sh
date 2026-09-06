@@ -36,7 +36,8 @@ else
   DIR=$(bash "$HERE/machine-dir.sh" "$PROJ" fleet-gate) || exit 1
   if [ -n "$RE" ]; then
     # a card name arrives from the phone with the machine name: it stays a name, never a path
-    case "$RE" in ""|*/*|*[!A-Za-z0-9._-]*) echo "fleet-gate: bad card name" >&2; exit 1 ;; esac
+    case "$RE" in gate-*.txt|ask-*.txt) ;; *) echo "fleet-gate: --re names a gate-*.txt or ask-*.txt card, got '$RE'" >&2; exit 1 ;; esac
+    case "$RE" in */*|*[!A-Za-z0-9._-]*) echo "fleet-gate: bad card name" >&2; exit 1 ;; esac
     G="$DIR/.delivery/inbox/$RE"
     [ -f "$G" ] || { echo "no card $RE waiting in $PROJ" >&2; exit 2; }
   else

@@ -42,7 +42,7 @@ import json
 for name, cmd in json.load(open('$CONF')).get('services', {}).items():
     print(f'{name}\t{cmd}')" | while IFS=$'\t' read -r name cmd; do
   if ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "$name"; then A=2
-  else bash "$PLUGIN_ROOT/scripts/service-alive.sh" "$SESSION" "$name"; A=$?; fi
+  else A=0; bash "$PLUGIN_ROOT/scripts/service-alive.sh" "$SESSION" "$name" || A=$?; fi   # `|| A=$?`: under set -e a bare non-zero exit would end the whole start
   case $A in
     0) ;;   # running
     # exit 2 is "no such window": either it was never there or it went away between the two calls.

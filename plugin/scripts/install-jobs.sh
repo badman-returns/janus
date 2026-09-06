@@ -26,7 +26,8 @@ for j in ${*:-brief lint}; do
     [ "${INSTALL_JOBS_KICK:-}" = 1 ] && launchctl kickstart -k "gui/$U/$L"
     LE=$(launchctl print "gui/$U/$L" 2>/dev/null | grep -m1 'last exit code' | sed 's/^[[:space:]]*//')
     echo "         ${LE:-last exit code = (not reported)}"
-    case "${LE:-}" in *"= 0"|"") ;; *)
+    # a job launchd has not run since this bootstrap reports "(never exited)": nothing to judge yet
+    case "${LE:-}" in *"= 0"|*"never exited"*|*"not reported"*|"") ;; *)
       echo "         that is usually Full Disk Access: System Settings > Privacy & Security >"
       echo "         Full Disk Access > add /bin/bash, then re-run this script.";; esac
   else
