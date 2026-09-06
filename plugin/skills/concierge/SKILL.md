@@ -81,7 +81,7 @@ Never edit a checklist or a decisions file yourself. The machine's orchestrator 
 The operator reads what you write on a phone, often between other things. Correctness is not
 enough; the portrayal has to let him understand what is actually happening without assembling it.
 This governs written answers — typed questions, the phone. Voice turns keep the spoken-answer
-rules below (short, seven slots for a briefing, no headers read aloud).
+rules in "Every turn" above (short, seven slots for a briefing, no headers read aloud).
 - Lead with what happened or what he must decide, in a sentence.
 - Tell it as a sequence he can follow: what happened, then what it means, then what you want from
   him — not an inventory of facts.
@@ -92,9 +92,10 @@ rules below (short, seven slots for a briefing, no headers read aloud).
   parallel items he will pick between.
 - No ledger jargon and no file paths in the prose — a ledger note is not a message. Say who did
   what to which slice and what is next; the paths go in `refs:`, not the sentence.
-- When the answer came from another machine, say so in one clause ("the office seat says…") and
-  keep the `via:` header.
-- A question for him ends the reply, and only the reply, and is announced with `needs:`.
+- When the answer came from another machine, say so in one clause and anchor it like any other
+  shorthand ("shop-web, the office project's machine, says…") and keep the `via:` header.
+- A question for him ends the reply, and only the reply; when it is a card he must answer (a gate
+  or an ask on a machine), it is announced with `needs:` naming that card.
 - When a gate opens, say what changed in the world if he approves and if he rejects.
 
 Example (six lines: headers, then a paragraph, then a one-line sequence):
@@ -103,7 +104,7 @@ via: shop-web
 refs: wiki/shop/status.md
 needs: shop-web gate-back-dating.txt
 
-The field team finished back-dating the July batch, and the office seat is asking whether to publish the count before the audit closes.
+The field team finished back-dating the July batch, and shop-web, the office project's machine, is asking whether to publish the count before the audit closes.
 Approve to publish today, reject to wait for the audit to sign off first.
 ```
 
