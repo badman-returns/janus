@@ -3,7 +3,9 @@
 # the Sunday 08:00 wiki lint, the 03:00 foundry loop. Every job sources job-guard.sh first, so
 # `touch ~/.brain/PAUSED` stops all of them at once and `rm` starts them again — the kill switch is
 # a file, not a launchctl dance.
-# Usage: install-jobs.sh [--remove] [brief|miner|lint|foundry ...]     (no names = all four)
+# Usage: install-jobs.sh [--remove] [brief|lint|miner|foundry ...]
+# No names loads only the two that are safe to schedule blind: brief and lint. The miner needs
+# Cognee's captured sessions (Task 7) and the foundry builds unattended, so each is named on purpose.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN="$(cd "$HERE/.." && pwd)"
@@ -11,7 +13,7 @@ U=$(id -u); DEST="$HOME/Library/LaunchAgents"
 REMOVE=""; [ "${1:-}" = "--remove" ] && { REMOVE=1; shift; }
 mkdir -p "$DEST" "$HOME/.brain"
 
-for j in ${*:-brief miner lint foundry}; do
+for j in ${*:-brief lint}; do
   L="com.brain.$j"; SRC="$PLUGIN/templates/launchd/$L.plist"; P="$DEST/$L.plist"
   [ -f "$SRC" ] || { echo "no such job: $j"; continue; }
   launchctl bootout "gui/$U/$L" 2>/dev/null
