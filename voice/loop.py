@@ -137,20 +137,20 @@ class Player:
             if mine: ev = self.inflight[key] = threading.Event()
         if not mine: ev.wait(60); return self.cache.get(key)
         out = os.path.join(BRAIN, 'voice', f'{key[0]}-{key[1]}.wav')
-        if os.path.exists(out) and os.path.getsize(out) > 44:     # a bridge an earlier run already said; sentence keys are unique
-            with self.lock: self.cache[key] = out; self.inflight.pop(key, None)
-            ev.set(); return out
+        with self.lock: self.rendering += 1
         try:
-            self.rendering += 1
+            if os.path.exists(out) and os.path.getsize(out) > 44:  # a bridge an earlier run already said; sentence keys are unique
+                with self.lock: self.cache[key] = out
+                return out
             r = subprocess.run(['bash', os.path.join(HERE, 'tts.sh'), text, out, VOICE], capture_output=True)
             ok = r.returncode == 0 and os.path.exists(out) and os.path.getsize(out) > 44
             if not ok: print('tts failed for %r: rc=%s %s' % (text[:40], r.returncode, r.stderr[-200:]), file=sys.stderr)
             with self.lock:
                 if ok: self.cache[key] = out
-                self.inflight.pop(key, None)
             return out if ok else None
-        finally:
-            self.rendering -= 1; ev.set()
+        finally:                          # a raise must not leave the key in flight for ever, or the count high
+            with self.lock: self.rendering -= 1; self.inflight.pop(key, None)
+            ev.set()
     @staticmethod
     def envelope(path):
         try:
@@ -200,6 +200,7 @@ class Loop:
         self.mic_open = False; self.buf = []; self.silence = 0; self.speech = 0; self.opened_at = 0.0; self.last_partial = 0.0
         self.flags = {'dnd': False, 'meeting': False, 'voice_on': False}; self.said_working = False
         self.echo = 0.0; self.echo_rid = None           # how loudly the room hands Janus back his own voice
+        self.finishing = False                          # a transcript is in flight: `listening` with a shut mic is expected
         self.source = 'voice'; self.idle_speak = 0; self.idle_listen = 0
     def feed(self, ev, **kw):
         with self.lock:
@@ -249,7 +250,7 @@ class Loop:
                     if PARTIALS and self.speech > 3 and now - self.last_partial > 1.5:
                         self.last_partial = now; threading.Thread(target=self.partial, args=(list(self.buf),), daemon=True).start()
                     if (self.speech > 0 and self.silence >= 9) or now - self.opened_at > 20 or (self.speech == 0 and now - self.opened_at > 4):
-                        frames = list(self.buf); had = self.speech > 0; self.mic_open = False
+                        frames = list(self.buf); had = self.speech > 0; self.mic_open = False; self.finishing = True
                         stream.emit({'t': 'level', 'v': 0.0})            # the meter stops with the microphone, not with the transcript
                         threading.Thread(target=self.finish, args=(frames, had), daemon=True).start()
             elif st == 'speaking':
@@ -286,6 +287,7 @@ class Loop:
         finally:                                          # whatever happened, the machine leaves `listening`
             stem = f"note-{int(time.time() * 1000)}-voice-{slugify(text)}"
             if text: stream.emit({'t': 'you', 'text': text, 'final': True})
+            self.finishing = False
             self.feed('speech_end', text=text, stem=stem)
     def housekeeping(self):
         while True:
@@ -299,7 +301,7 @@ class Loop:
                 if (self.m.state == 'thinking' and age > 60) or (self.m.state == 'waiting' and age > 600): self.feed('timeout')
                 # nothing playing and nothing rendering is not `speaking`; a closed microphone is not `listening`
                 self.idle_speak = self.idle_speak + 1 if self.m.state == 'speaking' and not self.player.busy() else 0
-                self.idle_listen = self.idle_listen + 1 if self.m.state == 'listening' and not self.mic_open else 0
+                self.idle_listen = self.idle_listen + 1 if self.m.state == 'listening' and not self.mic_open and not self.finishing else 0
                 if self.idle_speak >= 10: self.idle_speak = 0; print('voice: speaking with nothing to play; advancing', file=sys.stderr); self.feed('sentence_done')
                 if self.idle_listen >= 5: self.idle_listen = 0; print('voice: listening with the microphone shut; closing the turn', file=sys.stderr); self.feed('speech_end', text='')
             except Exception as e: print('housekeeping:', e, file=sys.stderr)
