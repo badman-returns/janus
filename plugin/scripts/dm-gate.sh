@@ -47,18 +47,27 @@ PY
   # only name a page that is actually there — a missing template must not forge the line
   [ -s "$PROOF/$SLICE/review.html" ] && echo "review: $PROOF/$SLICE/review.html" >> ".delivery/inbox/gate-$SLICE-proof.txt"
 fi
-# a draft PR where a remote and gh exist; the guide is the body. GH_BIN points a test at a stub.
+# A draft PR is publishing to a third party, so it is opt-in on two counts: only from the personal
+# seat (employer work asks first), and only where the branch already has an upstream — `gh pr create`
+# pushes a branch the remote has never seen, and nothing here may push. GH_BIN points a test at a stub.
 GH=${GH_BIN:-gh}
+SEAT=$(python3 -c "import json;print('office' if 'claude-alt' in (json.load(open('.delivery/config.json')).get('claude_config_dir') or '') else 'personal')" 2>/dev/null || echo personal)
 if command -v "$GH" >/dev/null 2>&1 && git remote get-url origin >/dev/null 2>&1 && [ -s "$PROOF/$SLICE/review.md" ]; then
-  URL=$("$GH" pr create --draft --title "$SLICE" --body-file "$PROOF/$SLICE/review.md" 2>/dev/null || "$GH" pr view --json url -q .url 2>/dev/null || true)
-  [ -n "$URL" ] && echo "pr: $URL" >> ".delivery/inbox/gate-$SLICE-proof.txt"
+  if [ "$SEAT" = office ]; then
+    echo "no PR: office seat — publishing employer work asks first"
+  elif ! git rev-parse --abbrev-ref --symbolic-full-name '@{u}' >/dev/null 2>&1; then
+    echo "no PR: $BRANCH has no upstream — push it yourself when you want a PR"
+  else
+    URL=$("$GH" pr create --draft --title "$SLICE" --body-file "$PROOF/$SLICE/review.md" 2>/dev/null || "$GH" pr view --json url -q .url 2>/dev/null || true)
+    [ -n "$URL" ] && echo "pr: $URL" >> ".delivery/inbox/gate-$SLICE-proof.txt"
+  fi
 fi
 
 # the watchable proof: the video goes out with the gate, captioned. No video is not a failure.
 if [ -f "$PROOF/$SLICE/proof.mp4" ]; then
   mkdir -p .delivery/outbox; MS=$(python3 -c "import time;print(int(time.time()*1000))")
   cp "$PROOF/$SLICE/proof.mp4" ".delivery/outbox/$MS-$SLICE-proof.mp4"
-  printf 'GATE 2 · %s · %s · watch, then in fleet: /gate approve <machine> or /gate reject <machine> <why>' "$SLICE" "$BRANCH" > ".delivery/outbox/$MS-$SLICE-proof.mp4.caption"
+  printf 'GATE 2 · %s · %s · watch, then in fleet: approve <machine> or reject <machine>: <why>' "$SLICE" "$BRANCH" > ".delivery/outbox/$MS-$SLICE-proof.mp4.caption"
 fi
 
 bash "$HERE/notify.sh" "GATE 2: $SLICE"

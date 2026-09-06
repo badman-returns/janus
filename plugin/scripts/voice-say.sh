@@ -5,10 +5,11 @@
 # thinking or speaking, the queue holds; a loop that is not running never blocks it.
 # Usage: voice-say.sh [--once]   (runs forever otherwise, as a fleet service window)
 # Env: SAY_BIN — a command called as `$SAY_BIN "<line>"` instead of Kokoro+afplay (tests);
-#      VOICE_NAME / KOKORO_VOICE — the voice; VOICE_STATE_URL — the loop's state endpoint.
+#      VOICE_NAME — an explicit voice; unset, tts.sh decides (one voice everywhere);
+#      VOICE_STATE_URL — the loop's state endpoint.
 set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd); TTS="$HERE/../../voice/tts.sh"
-Q="$HOME/.brain/voice-queue"; mkdir -p "$Q"; VOICE=${VOICE_NAME:-${KOKORO_VOICE:-am_michael}}
+Q="$HOME/.brain/voice-queue"; mkdir -p "$Q"; VOICE=${VOICE_NAME:-}
 STATE_URL=${VOICE_STATE_URL:-http://127.0.0.1:8790/state}
 YIELD_MAX_S=${YIELD_MAX_S:-60}                # how long the desk waits for the concierge to finish; tests shrink it
 SPEAK_CMD=${SAY_BIN:-}                       # the seam: it gets the line as its last argument

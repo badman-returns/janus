@@ -76,7 +76,7 @@ mission --resume <id>       # same, resuming a session
 the session.
 
 **From the phone:** open the Telegram chat. `fleet` topic for anything; a machine's topic to go
-inside it; `feed` to watch. Voice notes work. `/gate approve <machine>` answers a gate.
+inside it; `feed` to watch. Voice notes work. `approve <machine>` (or `reject <machine>: <why>`) answers a gate.
 
 A session started with plain `claude` outside tmux still works; the machine tells it so at start,
 it gets no tile, and its gate answers reach it on its next Stop instead of instantly.
@@ -211,7 +211,7 @@ same files this guide describes, never from memory of an earlier turn.
 ## Tests
 
 `bash plugin/tests/run.sh` runs the whole suite. It cannot run two copies at once: a handful of
-tests bind fixed ports (5595–5598) and fixed tmux session names to drive a real server or a real
+tests bind fixed ports (5593 and 5595–5599) and fixed tmux session names to drive a real server or a real
 window, so a second run started while one is already going fails those tests on the collision, not
 on anything it changed.
 

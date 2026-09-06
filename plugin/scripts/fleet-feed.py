@@ -73,9 +73,12 @@ def ledger(proj, d, state):
     p = pathlib.Path(d) / ".delivery/runs.jsonl"
     if not p.exists(): return
     key = p.as_posix()
-    off = state["offsets"].get(key, 0)
+    off = state["offsets"].get(key)
     data = p.read_bytes()
-    if len(data) < off: off = 0
+    # never seen: start at the end. A machine registered after the feed started, a lost state file or
+    # a moved dir (the key is the path) would otherwise replay its whole ledger, one message per line.
+    if off is None: off = len(data)
+    elif len(data) < off: off = 0
     for raw in data[off:].splitlines(keepends=True):
         try: e = json.loads(raw)
         except Exception: e = None          # junk line: nothing to send, step over it
@@ -97,7 +100,9 @@ def gates(proj, d, state):
             except Exception: pass
         body = body[:1500]                  # parse the whole ask first; cap only what is sent
         # plain text, no parse_mode: gate bodies are arbitrary operator prose and would break Markdown
-        sent = api("sendMessage", {"text": f"⏸ {proj} · waiting on you\n{body}\n\nAnswer here: /gate approve {proj}  or  /gate reject {proj} <why>"})
+        # the card names its own file: two gates on one machine and "approve <proj>" is ambiguous
+        sent = api("sendMessage", {"text": f"⏸ {proj} · waiting on you\n{body}\n\nAnswer here: approve {proj}"
+                                          f"  or  reject {proj}: <why>\ncard: {os.path.basename(f)}"})
         if sent is None: print(f"telegram rejected the card for {os.path.basename(f)} in {proj}", file=sys.stderr)
         if sent is not False: state["announced"].append(key)   # sent or rejected: never loop on it
 

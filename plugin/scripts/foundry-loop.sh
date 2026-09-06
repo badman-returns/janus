@@ -69,6 +69,11 @@ drop_branch(){ ERR=$(git -C "$MAIN" branch -q -D "$1" 2>&1) \
 # carrying it merges; until then the night job says so and stops instead of inventing work.
 git -C "$MAIN" cat-file -e "$BASE:foundry/program.md" 2>/dev/null \
   || { echo "## [$(date +%F)] no foundry/program.md on $BASE" >> "$LOG"; tail -1 "$LOG"; exit 0; }
+# evidence.md is the round's other input — what actually went wrong yesterday. The round is built in
+# a checkout of $BASE, so the agent can only read it if it is there; without it the loop would invent
+# work six times a night from nothing.
+git -C "$MAIN" cat-file -e "$BASE:foundry/evidence.md" 2>/dev/null \
+  || { echo "## [$(date +%F)] no foundry/evidence.md on $BASE" >> "$LOG"; tail -1 "$LOG"; exit 0; }
 
 # The eval on an untouched checkout of the default branch. A red baseline would score six rounds
 # "reverted" for a breakage none of them caused, so it stops the night instead.

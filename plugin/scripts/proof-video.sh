@@ -5,7 +5,7 @@
 #  narration.md         one sentence per scene, same order; spoken through voice/tts.sh (Kokoro,
 #                       with its own `say` fallback) and burned in as captions, also kept as proof.srt
 # Env: PROOF_VIDEO_TTS=none  -> silent AAC track (tests, or no voice);
-#      PROOF_VIDEO_VOICE     -> voice name (default: the machine's config voice.kokoro_voice, else am_michael)
+#      PROOF_VIDEO_VOICE     -> voice name (default: the machine's config voice.kokoro_voice; unset, tts.sh decides)
 # Usage: proof-video.sh <slice>   (from the machine root; honours config proof_dir)
 set -euo pipefail
 SLICE=${1:?slice}
@@ -18,7 +18,7 @@ LINES=(); SCENES=()   # bash 3.2: no mapfile
 while IFS= read -r l; do LINES+=("$l"); done < <(grep -v '^[[:space:]]*$' "$D/narration.md")
 while IFS= read -r l; do SCENES+=("$l"); done < <(ls "$S" | grep -E '\.(webm|mp4|png)$' | sort)
 [ "${#LINES[@]}" = "${#SCENES[@]}" ] || { echo "narration has ${#LINES[@]} lines, scenes has ${#SCENES[@]} files — one line per scene" >&2; exit 2; }
-VOICE=${PROOF_VIDEO_VOICE:-$(python3 -c "import json;print((json.load(open('.delivery/config.json')).get('voice') or {}).get('kokoro_voice') or 'am_michael')" 2>/dev/null || echo am_michael)}
+VOICE=${PROOF_VIDEO_VOICE:-$(python3 -c "import json;print((json.load(open('.delivery/config.json')).get('voice') or {}).get('kokoro_voice') or '')" 2>/dev/null || echo "")}
 T0=0; : > "$W/list.txt"; : > "$D/proof.srt"
 ts(){ python3 -c "import sys;s=float(sys.argv[1]);print('%02d:%02d:%06.3f'%(s//3600,(s%3600)//60,s%60))" "$1" | tr . ,; }
 for i in "${!SCENES[@]}"; do

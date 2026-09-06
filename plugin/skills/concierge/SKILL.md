@@ -39,7 +39,10 @@ names a registered skill, so `/concierge` starts you and nothing after it wears 
 - "what's going on" or "status" → `fleet-status.sh`, then one line per machine, gates first.
 - "tell <machine> <text>" → `fleet-route.sh <machine> <text>`. Confirm in one line.
 - "approve <machine>" · "reject <machine>: <why>" · "approve latest" (the newest gate on any
-  machine) → `fleet-gate.sh <machine>|latest APPROVE|REJECT <note>`. When the operator's words
+  machine) → `fleet-gate.sh <machine>|latest APPROVE|REJECT <note>`. When the card names a file
+  (`card: <file>` on the feed's gate card), pass it with `--re <file>` — with two cards open on one
+  machine, the answer would otherwise land on the newer one and not the one he was shown; without
+  it, `fleet-gate.sh` refuses and lists them. When the operator's words
   carry a ruling, put the ruling in the note — it lands in the reply as `APPROVE — <the ruling>`
   or `REJECT: <the ruling>` and that machine's orchestrator records the `D-<n>` when it consumes
   the reply. You never write another machine's `.delivery/decisions.md`.

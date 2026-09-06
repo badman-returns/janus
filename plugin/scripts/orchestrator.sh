@@ -41,13 +41,17 @@ python3 -c "
 import json
 for name, cmd in json.load(open('$CONF')).get('services', {}).items():
     print(f'{name}\t{cmd}')" | while IFS=$'\t' read -r name cmd; do
-  if ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "$name"; then
-    tmux new-window -t "$SESSION" -n "$name" -c "$PROJ_DIR"
-    tmux send-keys -t "$SESSION:$name" "$PRE$cmd" Enter
-  elif ! bash "$PLUGIN_ROOT/scripts/service-alive.sh" "$SESSION" "$name"; then
+  if ! tmux list-windows -t "$SESSION" -F '#W' | grep -qx "$name"; then A=2
+  else bash "$PLUGIN_ROOT/scripts/service-alive.sh" "$SESSION" "$name"; A=$?; fi
+  case $A in
+    0) ;;   # running
+    # exit 2 is "no such window": either it was never there or it went away between the two calls.
+    # Typing the command into a window that does not exist is how a service ends up in someone's pane.
+    2) tmux new-window -t "$SESSION" -n "$name" -c "$PROJ_DIR"
+       tmux send-keys -t "$SESSION:$name" "$PRE$cmd" Enter ;;
     # the window survived a --pause or a crash and sits at its prompt: the service starts again in it
-    tmux send-keys -t "$SESSION:$name" "$PRE$cmd" Enter && echo "service   $name started again in its window"
-  fi
+    *) tmux send-keys -t "$SESSION:$name" "$PRE$cmd" Enter && echo "service   $name started again in its window" ;;
+  esac
 done
 
 # ---- the cockpit (mission-control plugin) is optional: beside this repo, or in a plugin cache, or absent

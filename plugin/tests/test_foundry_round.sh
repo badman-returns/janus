@@ -21,7 +21,7 @@ run(){ WT=$1; shift; rc=0; FOUNDRY_WT="$WT" bash "$FL" --agent "$TOP/agent.sh" -
 # a repo mid-edit: one unstaged change, one staged change, one untracked file
 setup(){ # $1 = dir  $2 = default branch
   mkdir -p "$1"; cd "$1"; git init -q -b "$2"
-  mkdir foundry; echo "# program" > foundry/program.md
+  mkdir foundry; echo "# program" > foundry/program.md; echo "# evidence" > foundry/evidence.md
   printf 'foundry/log.md\n*.log\n' > .gitignore
   echo base > f; echo two > g; git add -A; git commit -qm base
   echo "operator was here" >> f; echo "staged" >> g; git add g; echo scratch > untracked
@@ -77,6 +77,14 @@ run "$TOP/wt-np" --rounds 2
 [ "$rc" = 0 ] || fail "missing program.md exited $rc: $(cat "$TOP/out")"
 grep -q "no foundry/program.md on main" foundry/log.md || fail "missing program.md not logged: $(cat foundry/log.md)"
 [ "$(git branch --list 'foundry/*' | wc -l | tr -d ' ')" = 0 ] || fail "missing program.md still cut a branch"
+
+# the night's other input: with no evidence.md the round would invent work from nothing
+setup "$TOP/noev" main; git rm -q --cached foundry/evidence.md; git commit -qm "drop evidence"
+export COUNT="$TOP/count" PASSES=9; rm -f "$COUNT"
+run "$TOP/wt-ne" --rounds 2
+[ "$rc" = 0 ] || fail "missing evidence.md exited $rc: $(cat "$TOP/out")"
+grep -q "no foundry/evidence.md on main" foundry/log.md || fail "missing evidence.md not logged: $(cat foundry/log.md)"
+[ "$(git branch --list 'foundry/*' | wc -l | tr -d ' ')" = 0 ] || fail "missing evidence.md still cut a branch"
 
 # a linked worktree is somebody's build checkout, and everything else here would have worked
 setup "$TOP/ref" main; git worktree add -q "$TOP/linked" -b build-branch

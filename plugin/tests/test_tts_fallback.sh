@@ -10,4 +10,14 @@ res=$(PATH="$T/bin:$PATH" TTS_FORCE_SAY=1 bash "$TTS" "one two three" "$T/o.wav"
 [ "$res" = fallback ] || fail "expected the word fallback, got: $res"
 [ -s "$T/o.wav" ] || fail "no wav written"
 ffprobe -v error -show_entries stream=sample_rate -of csv=p=0 "$T/o.wav" | grep -q '^24000$' || fail "wav is not 24 kHz"
+
+# One voice everywhere: with nothing named, tts.sh resolves the fleet machine's voice.kokoro_voice.
+# The render is forced down the `say` path, so the resolved name is read off TTS_DEBUG's stderr line.
+mkdir -p "$T/home/.delivery-machine" "$T/fleet/.delivery"
+echo "{\"fleet\":{\"dir\":\"$T/fleet\"}}" > "$T/home/.delivery-machine/registry.json"
+echo '{"project":"fleet","voice":{"kokoro_voice":"af_sarah"}}' > "$T/fleet/.delivery/config.json"
+v(){ HOME="$1" PATH="$T/bin:$PATH" KOKORO_VOICE= TTS_FORCE_SAY=1 TTS_DEBUG=1 bash "$TTS" one "$T/v.wav" ${2:+"$2"} 2>&1 >/dev/null; }
+v "$T/home"     | grep -q '^tts: voice=af_sarah$'  || fail "the fleet's voice was not resolved: $(v "$T/home")"
+v "$T/home" bm_george | grep -q '^tts: voice=bm_george$' || fail "an explicit voice lost to the fleet's"
+v "$T/nohome"   | grep -q '^tts: voice=am_michael$' || fail "no registry did not fall back to the built-in"
 echo "PASS test_tts_fallback"

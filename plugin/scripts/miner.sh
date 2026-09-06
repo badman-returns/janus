@@ -8,7 +8,10 @@ set -uo pipefail
 ls -d "$HOME"/.claude-tsg/plugins/cache/*/cognee-memory/*/ >/dev/null 2>&1 || {
   echo "$(date +%FT%T) miner: cognee-memory plugin not installed, nothing to mine yet" >> "$HOME/.brain/jobs.log"
   exit 0; }
-BRAIN=$(cat "$HOME/.delivery-machine/brain"); cd "$BRAIN"
+# no pointer means `cd ""` — a silent no-op that would run the whole job in launchd's cwd
+BRAIN=$(cat "$HOME/.delivery-machine/brain" 2>/dev/null)
+[ -n "$BRAIN" ] || { echo "$(date +%FT%T) miner: no brain pointer in $HOME/.delivery-machine/brain" >> "$HOME/.brain/jobs.log"; exit 1; }
+cd "$BRAIN" || { echo "$(date +%FT%T) miner: brain $BRAIN is not a directory" >> "$HOME/.brain/jobs.log"; exit 1; }
 export CLAUDE_CONFIG_DIR="$HOME/.claude-tsg" COGNEE_PLUGIN_DATASET=fleet
 MS=$(python3 -c "import time;print(int(time.time()*1000))")
 Y=$(date -v-1d +%F 2>/dev/null || date -d yesterday +%F)
@@ -19,4 +22,11 @@ if [ $RC -ne 0 ]; then
   echo "$(date +%FT%T) miner: claude failed rc=$RC (see .delivery/pickup.log)" >> "$HOME/.brain/jobs.log"
   echo "last night's miner did not run: claude exited $RC" > ".delivery/outbox/$MS-miner-failed.txt"
   exit $RC
+fi
+# the miner's artefacts are wiki edits, not a file in the outbox: an untouched working tree means
+# claude exited 0 having mined nothing, which is a failure and not a quiet night.
+if [ -z "$(git -C "$BRAIN" status --porcelain 2>/dev/null)" ]; then
+  echo "$(date +%FT%T) miner: claude changed nothing in the wiki (see .delivery/pickup.log)" >> "$HOME/.brain/jobs.log"
+  echo "last night's miner produced nothing" > ".delivery/outbox/$MS-miner-failed.txt"
+  exit 1
 fi

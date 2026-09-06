@@ -21,6 +21,14 @@ for j in ${*:-brief lint}; do
   sed -e "s|__PLUGIN__|$PLUGIN|g" -e "s|__HOME__|$HOME|g" "$SRC" > "$P"
   if launchctl bootstrap "gui/$U" "$P"; then
     echo "loaded   $L   $(plutil -extract StartCalendarInterval json -o - "$P")   log: $HOME/.brain/jobs.log"
+    # a job launchd cannot execute exits 126 and is invisible until a brief stops arriving, so ask now.
+    # INSTALL_JOBS_KICK=1 runs it immediately; without it the exit code is whatever the last run left.
+    [ "${INSTALL_JOBS_KICK:-}" = 1 ] && launchctl kickstart -k "gui/$U/$L"
+    LE=$(launchctl print "gui/$U/$L" 2>/dev/null | grep -m1 'last exit code' | sed 's/^[[:space:]]*//')
+    echo "         ${LE:-last exit code = (not reported)}"
+    case "${LE:-}" in *"= 0"|"") ;; *)
+      echo "         that is usually Full Disk Access: System Settings > Privacy & Security >"
+      echo "         Full Disk Access > add /bin/bash, then re-run this script.";; esac
   else
     echo "FAILED   $L   (launchctl bootstrap gui/$U $P)"
   fi

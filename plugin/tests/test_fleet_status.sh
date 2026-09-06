@@ -12,7 +12,9 @@ OUT=$(HOME="$T/home" bash "$FS") || fail "status exited $?"
 echo "$OUT" | grep -q '^a · personal · live · dm-builder dispatched s1 · gates:1 · checklist 1/2' || fail "status line: $OUT"
 HOME="$T/home" FEED_CHAT_ID=42 bash "$FR" a "please pause slice s1" || fail "route exited $?"
 N=$(ls "$T/a/.delivery/inbox" | grep -c '^note-[0-9]*-tg-please-pause-slice-s1.txt$'); [ "$N" = 1 ] || fail "note not written: $(ls "$T/a/.delivery/inbox")"
-head -1 "$T"/a/.delivery/inbox/note-*-tg-*.txt | grep -q '^from: telegram 42 20' || fail "note header: $(head -1 "$T"/a/.delivery/inbox/note-*-tg-*.txt)"
+# the chat id is a keychain value and never reaches a file: the header is provenance, not identity
+head -1 "$T"/a/.delivery/inbox/note-*-tg-*.txt | grep -q '^from: telegram 20' || fail "note header: $(head -1 "$T"/a/.delivery/inbox/note-*-tg-*.txt)"
+grep -q 42 "$T"/a/.delivery/inbox/note-*-tg-*.txt && fail "the chat id was written into the note"
 HOME="$T/home" bash "$FG" a REJECT "badge text wrong" || fail "gate exited $?"
 [ ! -e "$T/a/.delivery/inbox/gate-s1-proof.txt" ] || fail "gate file not removed"
 R=$(ls "$T/a/.delivery/inbox" | grep '^reply-'); [ -n "$R" ] || fail "no reply file"
@@ -49,5 +51,26 @@ printf 'GATE 2 — review proof for s4\n' > "$T/a/.delivery/inbox/gate-s4-proof.
 HOME="$T/home" bash "$FG" a approve "lower case" || fail "lowercase approve exited $?"
 R4=$(ls "$T/a/.delivery/inbox" | grep '^reply-.*gate-s4')
 sed -n 2p "$T/a/.delivery/inbox/$R4" | grep -qx 'APPROVE — lower case' || fail "lowercase verdict not upper-cased"
+# two cards on one machine: the newest is not necessarily the one the operator was shown, so refuse
+printf 'GATE 2 — review proof for s5\n' > "$T/a/.delivery/inbox/gate-s5-proof.txt"; sleep 1
+printf 'GATE 1 — plan for s6\n' > "$T/a/.delivery/inbox/gate-s6-proof.txt"
+OUT=$(HOME="$T/home" bash "$FG" a APPROVE 2>&1); rc=$?
+[ "$rc" = 3 ] || fail "two cards waiting exited $rc, want 3: $OUT"
+echo "$OUT" | grep -q 'gate-s5-proof.txt' || fail "the refusal did not list both cards: $OUT"
+echo "$OUT" | grep -q 'gate-s6-proof.txt' || fail "the refusal did not list both cards: $OUT"
+[ -e "$T/a/.delivery/inbox/gate-s5-proof.txt" ] || fail "the refusal answered a card anyway"
+# --re answers the card the feed named, and leaves the other one waiting
+HOME="$T/home" bash "$FG" a APPROVE --re gate-s5-proof.txt "the one he read" || fail "--re exited $?"
+[ ! -e "$T/a/.delivery/inbox/gate-s5-proof.txt" ] || fail "--re did not answer the named card"
+[ -e "$T/a/.delivery/inbox/gate-s6-proof.txt" ] || fail "--re answered the other card too"
+R5=$(ls "$T/a/.delivery/inbox" | grep '^reply-.*gate-s5')
+sed -n 2p "$T/a/.delivery/inbox/$R5" | grep -qx 'APPROVE — the one he read' || fail "--re dropped the note"
+# the history the next round is read against, written the way server.js's writeInbox writes it
+TH="$T/a/.delivery/threads/gate-s5-proof.md"
+[ -s "$TH" ] || fail "a gate answered from the phone left no thread"
+grep -q 'GATE 2 — review proof for s5' "$TH" || fail "thread has no gate body: $(cat "$TH")"
+grep -q 'APPROVE — the one he read' "$TH" || fail "thread has no reply: $(cat "$TH")"
+rm -f "$T/a/.delivery/inbox/gate-s6-proof.txt"
+
 HOME="$T/home" bash "$FG" latest APPROVE >/dev/null 2>&1; [ $? = 2 ] || fail "latest with nothing waiting should exit 2"
 echo "PASS test_fleet_status"

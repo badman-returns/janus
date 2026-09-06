@@ -22,7 +22,7 @@ grep -q '^review: proof/s/review.html' .delivery/inbox/gate-s-proof.txt || fail 
 grep -q '^pr:' .delivery/inbox/gate-s-proof.txt && fail "a PR line without gh"
 [ -e .delivery/outbox ] && fail "no proof.mp4, yet the gate dropped something in the outbox"
 
-# gh and a remote: a draft PR with the guide as its body, and the url in the gate file
+# gh, a remote and an upstream: a draft PR with the guide as its body, and the url in the gate file
 git init -q --bare "$T/remote.git" && git remote add origin "$T/remote.git"
 cat > bin/gh <<'EOF'
 #!/bin/sh
@@ -30,6 +30,7 @@ printf '%s\n' "$@" >> gh.args
 [ "$1" = pr ] && [ "$2" = create ] && echo https://example.test/pr/1
 EOF
 chmod +x bin/gh
+git push -q -u origin s 2>/dev/null || fail "could not give the branch an upstream"
 GH_BIN="$T/bin/gh" bash "$GATE" s >/dev/null 2>&1 || fail "dm-gate with gh exited $?"
 grep -q '^pr: https://example.test/pr/1' .delivery/inbox/gate-s-proof.txt || fail "gate file does not name the PR"
 [ -s gh.args ] || fail "gh was never called"
@@ -42,5 +43,23 @@ grep -qx -- 'proof/s/review.md' gh.args || fail "the guide is not the PR body"
 GH_BIN="$T/bin/gh" bash "$GATE" s >/dev/null 2>&1 || fail "dm-gate with a video exited $?"
 ls .delivery/outbox/*-s-proof.mp4 >/dev/null 2>&1 || fail "proof.mp4 was not dropped in the outbox"
 C=$(cat .delivery/outbox/*-s-proof.mp4.caption 2>/dev/null) || fail "no caption beside the video"
-case "$C" in "GATE 2"*" s "*"/gate approve"*) : ;; *) fail "caption is not the gate line: $C" ;; esac
+case "$C" in "GATE 2"*" s "*"approve <machine>"*) : ;; *) fail "caption is not the gate line: $C" ;; esac
+case "$C" in *"/gate "*) fail "caption still names the /gate command that does not exist" ;; esac
+
+# the office seat never publishes employer work: gh is not called at all, whatever the remote says
+echo '{"project":"t","claude_config_dir":"~/.claude-alt","services":{}}' > .delivery/config.json
+: > gh.args
+OUT=$(GH_BIN="$T/bin/gh" bash "$GATE" s 2>&1) || fail "dm-gate on the office seat exited $?"
+[ -s gh.args ] && fail "gh was called from the office seat"
+grep -q '^pr:' .delivery/inbox/gate-s-proof.txt && fail "the office seat opened a PR"
+case "$OUT" in *"office seat"*) : ;; *) fail "no line saying why there is no PR: $OUT" ;; esac
+
+# a branch with no upstream: gh pr create would push it, so it is never called
+echo '{"project":"t","services":{}}' > .delivery/config.json
+git branch --unset-upstream s
+: > gh.args
+OUT=$(GH_BIN="$T/bin/gh" bash "$GATE" s 2>&1) || fail "dm-gate with no upstream exited $?"
+[ -s gh.args ] && fail "gh was called on a branch with no upstream"
+grep -q '^pr:' .delivery/inbox/gate-s-proof.txt && fail "a PR was opened on a branch with no upstream"
+case "$OUT" in *"no upstream"*) : ;; *) fail "no line saying why there is no PR: $OUT" ;; esac
 echo "PASS test_gate_review"

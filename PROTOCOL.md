@@ -37,11 +37,11 @@ which exports each entry; a missing item is a warning on stderr, never a failure
 written to any file.
 
 The fleet machine's config carries one more optional key, `voice`, read by the voice loop
-(`voice/loop.py`) and the shell (`voice/shell.py`): `{ mic, wake_model, wake_phrase, kokoro_voice,
+(`voice/loop.py`) and the shell (`voice/shell.py`): `{ mic, wake_model, whisper_url, kokoro_voice,
 hotkey, partials, port, vad, vad_rms, echo_margin, wake_settle, wake_threshold_speaking,
 min_speech, think_timeout }`. Every key is defaulted — a missing key, or no `voice` object at all,
 starts the loop on the built-in microphone and the stand-in wake word. Defaults: `mic` `"1"`,
-`wake_model` `"hey_jarvis"`, `wake_phrase` `"hey jarvis"`, `kokoro_voice` `"am_michael"`, `hotkey`
+`wake_model` `"hey_jarvis"`, `kokoro_voice` `"am_michael"`, `hotkey`
 `"alt+space"`, `partials` `true`, `port` `8790`, `vad` `"silero"`, `vad_rms` `0.015`, `echo_margin`
 `1.8`, `wake_settle` `1.5s`, `wake_threshold_speaking` `0.8`, `min_speech` `0.4s`, `think_timeout`
 `120s`.
@@ -54,7 +54,7 @@ starts the loop on the built-in microphone and the stand-in wake word. Defaults:
 | `ask-<ms>-<slug>.txt` | `ask.sh` hook | JSON `{"kind":"ask"\|"permission","title":…,"questions":[{"question":…,"options":[…],"multi":bool}]}` | operator |
 | `reply-<ms>-<slug(name)>.txt` | operator | line 1 `RE: <gate or ask filename>`, rest = answer (`APPROVE`, `REJECT: note`, option label, `ALLOW`, `DENY: note`) | orchestrator (gates), `ask.sh` (asks) — the consumer deletes it |
 | `note-<ms>-<slug>.txt` | operator | free text, treated as a typed message | orchestrator |
-| `note-<ms>-voice-<slug>.txt`, `note-<ms>-tg-<slug>.txt`, or any note carrying a `from:` first line | the voice loop (`from: voice <iso>` spoken, `from: typed <iso>` the Talk box), `fleet-route.sh` (`from: telegram <chat> <iso>`), the loop relaying another machine's answer (`from: relay <machine> <iso>`) | optional second line `interrupted: <what was being said>`, then a blank line, then the text | orchestrator — identical consumption to any note; the header is provenance only |
+| `note-<ms>-voice-<slug>.txt`, `note-<ms>-tg-<slug>.txt`, or any note carrying a `from:` first line | the voice loop (`from: voice <iso>` spoken, `from: typed <iso>` the Talk box), `fleet-route.sh` (`from: telegram <iso>`), the loop relaying another machine's answer (`from: relay <machine> <iso>`) | optional second line `interrupted: <what was being said>`, then a blank line, then the text | orchestrator — identical consumption to any note; the header is provenance only |
 | `handled/` | watcher | items a headless run left behind | nobody; audit only |
 
 Writing a reply removes the gate/ask it answers. `<slug>` = lowercase, `[^a-z0-9-]`→`-`, 40 chars.
@@ -246,7 +246,7 @@ than only in its own header comment.
 | `machine-dir.sh` | resolves a registered machine's directory by name from the registry; the name is checked in the shell and passed to Python as an argument, never interpolated into source |
 | `fleet-status.sh` | one line per registered machine: seat, liveness, last ledger line, waiting gates, checklist progress |
 | `fleet-route.sh` | writes an operator note into a machine's inbox, tagged `from: telegram` |
-| `fleet-gate.sh` | answers a machine's newest gate or ask the way the dashboard does; `latest` answers the newest gate on any registered machine; verdicts are case-insensitive |
+| `fleet-gate.sh` | answers a machine's gate or ask the way the dashboard does, appending `.delivery/threads/<gate>.md` before removing it; `--re <card>` names which card, and with more than one waiting it refuses (exit 3) and lists them; `latest` answers the newest gate on any registered machine; verdicts are case-insensitive |
 | `inflight.sh` | JSON of every slice actually in flight, for the feeder to check a meeting's decisions against |
 | `bridge-link.sh` / `bridge-run.sh` | link every machine's `claude*` window into the `bridge` tmux session, and run ccgram bound to it; `DM_BRIDGE=0` switches the bridge off entirely (what the tests set) |
 | `fleet-feed.py` | send-only Telegram poster: ledger transitions, gate cards and outbox files, sent by type, retried on a transient failure, `.rejected` on a permanent one |

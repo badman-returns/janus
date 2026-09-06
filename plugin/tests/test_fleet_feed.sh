@@ -37,10 +37,18 @@ echo '{"ts":"2026-09-05T10:00:00Z","agent":"dm-verifier","slice":"desk","status"
 printf 'GATE 2 — review proof for desk\n\nbranch: feat/desk\nAPPROVE / REJECT with note\n' > "$T/m1/.delivery/inbox/gate-desk-proof.txt"
 printf '\x89PNG\r\n\x1a\n' > "$T/m1/.delivery/outbox/1-shot.png"; echo "the shot" > "$T/m1/.delivery/outbox/1-shot.png.caption"
 ENV="HOME=$T/home TELEGRAM_BOT_TOKEN=t FEED_CHAT_ID=42 TELEGRAM_API_BASE=http://127.0.0.1:$PORT"
+# m1 is a machine the feed has already seen (its cursor is at 0), the way the live five are — a
+# ledger the feed has NEVER seen starts at its end instead, which is the m2 case at the bottom
+python3 -c "import json,sys;json.dump({'offsets':{sys.argv[1]:0},'announced':[],'silence':{}},open(sys.argv[2],'w'))" \
+  "$T/m1/.delivery/runs.jsonl" "$T/home/.delivery-machine/feed-state.json"
 env $ENV python3 "$FF" --once || fail "first pass exited $?"
 grep -q '"method": "sendMessage"' "$T/calls.log" || fail "no sendMessage"
 grep -q 'm1 · desk · dm-verifier done · PASS — api 887/887.' "$T/calls.log" || fail "ledger headline wrong: $(cat "$T/calls.log")"
 grep -c 'GATE 2' "$T/calls.log" | grep -qx 1 || fail "gate card not sent exactly once"
+# the card says what the concierge answers to, and names its own file so two open cards stay apart
+grep -q 'Answer here: approve m1' "$T/calls.log" || fail "gate card is not in the concierge's words: $(cat "$T/calls.log")"
+grep -q 'card: gate-desk-proof.txt' "$T/calls.log" || fail "gate card does not name its file"
+grep -q '/gate ' "$T/calls.log" && fail "gate card still names the /gate command, which does not exist"
 grep -q '"method": "sendPhoto"' "$T/calls.log" || fail "png not sent as photo"
 grep -q 'the shot FILE=1-shot.png' "$T/calls.log" || fail "caption or filename missing"
 [ -f "$T/m1/.delivery/outbox/sent/1-shot.png" ] || fail "outbox file not moved to sent/"
@@ -118,5 +126,23 @@ env $ENV python3 "$FF" --once || fail "pass with an empty outbox file exited $?"
 [ "$(grep -c '' "$T/calls.log")" = "$N" ] || fail "a dot or empty outbox file was sent: $(tail -1 "$T/calls.log")"
 [ -f "$T/m1/.delivery/outbox/.gitkeep" ] || fail ".gitkeep was moved out of the outbox"
 [ -f "$T/m1/.delivery/outbox/note.txt" ] || fail "an empty outbox file was moved"
+
+# a machine registered after the feed started: its ledger is history, not news. First sight posts
+# nothing; the first line written after that does go out.
+mkdir -p "$T/m2/.delivery/inbox" "$T/m2/.delivery/outbox"
+for i in 1 2 3 4 5; do
+  echo "{\"ts\":\"2026-09-05T11:0$i:00Z\",\"agent\":\"dm-builder\",\"slice\":\"old\",\"status\":\"done\",\"note\":\"history $i\"}" >> "$T/m2/.delivery/runs.jsonl"
+done
+python3 - "$T/home/.delivery-machine/registry.json" "$T/m2" <<'EOF'
+import json, sys
+p = sys.argv[1]; r = json.load(open(p))
+r["m2"] = {"dir": sys.argv[2], "session": "dm-m2", "port": 5, "ttyd_port": 6, "started": "x"}
+json.dump(r, open(p, "w"))
+EOF
+env $ENV python3 "$FF" --once || fail "first pass over a fresh machine exited $?"
+grep -q 'history ' "$T/calls.log" && fail "a fresh machine's whole ledger was replayed to the phone"
+echo '{"ts":"2026-09-05T11:06:00Z","agent":"dm-builder","slice":"new","status":"done","note":"the first new line"}' >> "$T/m2/.delivery/runs.jsonl"
+env $ENV python3 "$FF" --once || fail "pass after the fresh machine's new line exited $?"
+grep -q 'the first new line' "$T/calls.log" || fail "the first line after registration was not posted"
 
 echo "PASS test_fleet_feed"
