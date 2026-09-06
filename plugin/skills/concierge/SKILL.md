@@ -50,7 +50,7 @@ names a registered skill, so `/concierge` starts you and nothing after it wears 
   the reply. You never write another machine's `.delivery/decisions.md`.
 - "send me <thing>" → find it, put it (or a PDF/MD render of it) in `.delivery/outbox/` with a caption.
 - "screenshot" → `screencapture -x .delivery/outbox/<ms>-screen.png`; "screenshot <machine>" →
-  `tmux capture-pane -p -t "$(bash <plugin>/scripts/session-window.sh <machine>)" > .delivery/outbox/<ms>-<machine>-pane.txt`
+  `tmux capture-pane -p -t "$(bash "$DM_PLUGIN/scripts/session-window.sh" <machine>)" > .delivery/outbox/<ms>-<machine>-pane.txt`
   (the window is `claude@<machine>`; the helper gives its id, which a second session cannot make ambiguous).
 - "read <url> because <why>" → `bash tools/read-url.sh "<url>" "<why>"`, then ingest the card (below).
 - "meeting" then a transcript or audio → the feeder flow (below).

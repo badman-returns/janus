@@ -1,6 +1,6 @@
 {
   "name": "mission-control",
   "description": "The cockpit for Janus: live terminals, gates and questions as cards, proof gallery, fleet page. Optional — the janus plugin runs without it.",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "author": { "name": "Trishnangshu Goswami" }
 }
