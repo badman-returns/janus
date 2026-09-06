@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # bridge-link.sh links every claude* window of every registered machine into session `bridge`, once.
 set -u
+unset DM_BRIDGE   # this test is the linker itself, on its own tmux server; a suite-wide DM_BRIDGE=0 must not switch it off
 HERE="$(cd "$(dirname "$0")" && pwd)"; BL="$HERE/../scripts/bridge-link.sh"
 T=$(mktemp -d); export TMUX_SOCK="-L bl-$$"; trap 'tmux $TMUX_SOCK kill-server 2>/dev/null; rm -rf "$T"' EXIT
 fail(){ echo "FAIL test_bridge_link: $1"; exit 1; }
