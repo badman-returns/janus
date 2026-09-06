@@ -1,6 +1,7 @@
 .DS_Store
 node_modules/
 *.log
+foundry/log.md
 .delivery/HANDOFF.md
 .delivery/inbox/
 .delivery/build/

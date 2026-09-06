@@ -3,9 +3,19 @@
 You are improving Janus, the plugin in `plugin/`. One change per round. Evidence first.
 
 ## Where this runs
-The main checkout, `~/code/janus`, on its default branch. Never a linked
-worktree — those are build checkouts parked on somebody's branch, and the loop refuses in one
-(`FOUNDRY_ALLOW_WORKTREE=1` if you ever mean it).
+The loop is started in the main checkout, `~/code/janus`, and builds from
+its default branch — read from the refs, so whatever the operator has checked out or half-edited
+there is irrelevant. It never switches that checkout, never checks anything out in it, never
+stashes: each round gets its own throwaway worktree at `~/.brain/foundry/wt` (`FOUNDRY_WT` moves
+it), removed when the round ends. The only thing the loop writes in the operator's tree is the
+line it appends to `foundry/log.md`, which is gitignored.
+
+Started from a linked worktree it refuses and says so — those are build checkouts parked on
+somebody's branch (`FOUNDRY_ALLOW_WORKTREE=1` if you ever mean it).
+
+You are reading this file from the round's worktree, so it is the copy on the default branch.
+This file reaches `master` only when the branch carrying it merges; until then the night job finds
+nothing to read and stops with one log line, `no foundry/program.md on <branch>`.
 
 ## Evidence to read
 - `foundry/evidence.md` — written before each night by `brief.sh`'s sibling step: yesterday's
@@ -26,5 +36,7 @@ Not a change: refactors for taste, renames, new dependencies, anything touching 
 without it. The reviewer of your branch is a different model than you; it reads the diff cold.
 
 ## Stop conditions
-Six rounds, or 06:30, or a round that cannot restore green. Nothing merges. The operator approves
-kept branches from the morning brief, one tap each.
+Six rounds, or 06:30 (`--until`, which the night job passes and a by-hand run normally leaves off),
+or a red baseline — the eval is run once on an untouched worktree of the default branch before
+round 1, and if that is already red the night stops rather than blame six rounds for it. Nothing
+merges. The operator approves kept branches from the morning brief, one tap each.

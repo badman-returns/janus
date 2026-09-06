@@ -1,50 +1,86 @@
 #!/usr/bin/env bash
-# autoresearch for Janus. One change per round on its own branch; a fixed eval decides keep or
-# revert; a log the operator reads in the morning; nothing merges. The instructions the agent follows
-# live in foundry/program.md — edit that, not this.
-# Runs in the main checkout (~/code/janus), never a linked worktree — those
-# are build checkouts sitting on somebody's branch.
-# Usage: foundry-loop.sh [--rounds N] [--eval CMD] [--until HH:MM] [--dry]
+# autoresearch for Janus. One change per round, each on its own branch built in its own throwaway
+# worktree under ~/.brain/foundry; a fixed eval decides keep or revert; a log the operator reads in
+# the morning; nothing merges. The operator's checkout is never switched, never checked out, never
+# stashed — the loop only reads its refs and appends to foundry/log.md.
+# The instructions the agent follows live in foundry/program.md — edit that, not this.
+# Usage: foundry-loop.sh [--rounds N] [--eval CMD] [--until HH:MM] [--agent CMD] [--dry]
 # Env: FOUNDRY_AGENT — command that makes the change (default: headless Claude on the Janus account)
-#      FOUNDRY_ALLOW_WORKTREE=1 — run in a linked worktree anyway
+#      FOUNDRY_WT    — the round's worktree path (default ~/.brain/foundry/wt)
+#      FOUNDRY_ALLOW_WORKTREE=1 — run from a linked worktree anyway
 set -uo pipefail
 source "$(dirname "$0")/job-guard.sh" 2>/dev/null || true
+USAGE="usage: foundry-loop.sh [--rounds N] [--eval CMD] [--until HH:MM] [--agent CMD] [--dry]"
 ROUNDS=6; EVAL="bash plugin/tests/run.sh"; UNTIL=""; DRY=0
-while [ $# -gt 0 ]; do case "$1" in --rounds) ROUNDS=$2; shift 2;; --eval) EVAL=$2; shift 2;; --until) UNTIL=$2; shift 2;; --dry) DRY=1; shift;; *) shift;; esac; done
+AGENT=${FOUNDRY_AGENT:-"env CLAUDE_CONFIG_DIR=$HOME/.claude-tsg claude -p \"Read foundry/program.md and foundry/evidence.md. Make exactly ONE change it justifies, with a test under plugin/tests/, and commit it with a one-line message starting 'foundry:'. Do not merge.\""}
+while [ $# -gt 0 ]; do case "$1" in
+  --rounds|--eval|--until|--agent)
+    [ $# -ge 2 ] || { echo "$1 needs a value" >&2; echo "$USAGE" >&2; exit 2; }
+    case "$1" in --rounds) ROUNDS=$2;; --eval) EVAL=$2;; --until) UNTIL=$2;; --agent) AGENT=$2;; esac; shift 2;;
+  --dry) DRY=1; shift;;
+  *) echo "unknown flag: $1" >&2; echo "$USAGE" >&2; exit 2;;
+esac; done
+
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || { echo "run inside the repo" >&2; exit 1; }
-# A linked worktree is a build checkout parked on someone's branch — switching it to the default
-# branch would yank that build out from under them. Resolve both paths: from a subdirectory git
+# A linked worktree is a build checkout parked on someone's branch. The foundry reads the main
+# checkout's refs and hangs its own worktrees off it. Resolve both paths: from a subdirectory git
 # prints one absolute and one relative, and a bare string compare would refuse a good repo.
 gitdir(){ (cd "$(git rev-parse "$1")" && pwd -P); }
 [ "$(gitdir --git-dir)" = "$(gitdir --git-common-dir)" ] || [ "${FOUNDRY_ALLOW_WORKTREE:-}" = 1 ] \
-  || { echo "linked worktree — refusing (FOUNDRY_ALLOW_WORKTREE=1 overrides)" >&2; exit 1; }
-# Tracked work-in-progress must not ride onto a foundry branch. Untracked files are nobody's edit
-# in progress, and foundry/ is the loop's own scratch (log.md, agent.log, the operator's program.md).
-[ -z "$(git status --porcelain -uno -- ':!foundry')" ] || { echo "dirty tree — refusing" >&2; exit 1; }
-for b in main master; do git show-ref -q --verify "refs/heads/$b" && { MAIN=$b; break; }; done
-[ -n "${MAIN:-}" ] || { echo "no main or master branch — refusing" >&2; exit 1; }
-git switch -q "$MAIN" || { echo "cannot switch to $MAIN — refusing" >&2; exit 1; }
-mkdir -p foundry; touch foundry/log.md
-AGENT=${FOUNDRY_AGENT:-"env CLAUDE_CONFIG_DIR=$HOME/.claude-tsg claude -p \"Read foundry/program.md and foundry/evidence.md. Make exactly ONE change it justifies, with a test under plugin/tests/, and commit it with a one-line message starting 'foundry:'. Do not touch main or merge.\""}
+  || { echo "cwd is a linked worktree, not the main checkout — refusing (FOUNDRY_ALLOW_WORKTREE=1 overrides)" >&2; exit 1; }
+MAIN=$(git rev-parse --show-toplevel)          # every path below hangs off this, never off cwd
+WT=${FOUNDRY_WT:-$HOME/.brain/foundry/wt}
+LOG="$MAIN/foundry/log.md"; ALOG="$MAIN/foundry/agent.log"
+# Branches are read from MAIN's refs, not its HEAD: the operator may be on a feature branch or
+# detached, and the foundry still builds from the default branch.
+for b in main master; do git -C "$MAIN" show-ref -q --verify "refs/heads/$b" && { BASE=$b; break; }; done
+[ -n "${BASE:-}" ] || { echo "no main or master branch — refusing" >&2; exit 1; }
+mkdir -p "$MAIN/foundry"; touch "$LOG"
+
+one(){ tr '\n' ' ' | tr '|' '/' | cut -c1-200; }   # a log line has | fields; keep them
+say(){ echo "## [$(date +%F)] round $1 | $2 | $3 | $4" >> "$LOG"; }
+die(){ echo "## [$(date +%F)] $1" >> "$LOG"; echo "$1" >&2; exit 1; }
+wt_clear(){ git -C "$MAIN" worktree remove --force "$WT" >/dev/null 2>&1; rm -rf "$WT"
+  mkdir -p "$(dirname "$WT")"; git -C "$MAIN" worktree prune; }
+wt_add(){ wt_clear; git -C "$MAIN" worktree add -q "$WT" -b "$1" "$BASE" 2>&1; }  # stderr is the return value
+wt_drop(){ ERR=$(git -C "$MAIN" worktree remove --force "$WT" 2>&1) \
+  || die "worktree $WT could not be removed, branch state unknown: $(printf %s "$ERR" | one)"; }
+drop_branch(){ ERR=$(git -C "$MAIN" branch -q -D "$1" 2>&1) \
+  || die "branch $1 could not be deleted after its worktree went away: $(printf %s "$ERR" | one)"; }
+
+# Nothing to read means nothing to do. program.md reaches the default branch only when the branch
+# carrying it merges; until then the night job says so and stops instead of inventing work.
+git -C "$MAIN" cat-file -e "$BASE:foundry/program.md" 2>/dev/null \
+  || { echo "## [$(date +%F)] no foundry/program.md on $BASE" >> "$LOG"; tail -1 "$LOG"; exit 0; }
+
+# The eval on an untouched checkout of the default branch. A red baseline would score six rounds
+# "reverted" for a breakage none of them caused, so it stops the night instead.
+if [ $DRY = 0 ]; then
+  BB="foundry/$(date +%F)-baseline"
+  ERR=$(wt_add "$BB") || die "baseline worktree failed: $(printf %s "$ERR" | one)"
+  if ! ( cd "$WT" && bash -c "$EVAL" ) >> "$ALOG" 2>&1; then
+    echo "## [$(date +%F)] baseline red on $BASE: $(tail -1 "$ALOG" | one)" >> "$LOG"
+    wt_drop; drop_branch "$BB"; tail -1 "$LOG"; exit 1
+  fi
+  wt_drop; drop_branch "$BB"
+fi
+
 for n in $(seq 1 "$ROUNDS"); do
   [ -n "$UNTIL" ] && [ "$(date +%H:%M)" \> "$UNTIL" ] && [ "$(date +%H)" -lt 12 ] && { echo "stop: past $UNTIL"; break; }
-  B="foundry/$(date +%F)-$n"
-  # a name already taken (a kept branch from an earlier run today) must never fall through to a
-  # round that commits on $MAIN — skip the round instead.
-  git switch -q -c "$B" "$MAIN" 2>/dev/null || { echo "## [$(date +%F)] round $n | reverted | $B | branch already exists" >> foundry/log.md; continue; }
-  [ $DRY = 1 ] && { echo "dry round $n on $B"; git switch -q "$MAIN"; git branch -q -D "$B"; continue; }
-  bash -c "$AGENT" >> foundry/agent.log 2>&1 || true
-  git checkout -q -- .   # only commits count; uncommitted leftovers must not ride back to $MAIN
-  if [ "$(git rev-parse HEAD)" = "$(git rev-parse "$MAIN")" ]; then
-    git switch -q "$MAIN"; git branch -q -D "$B"; echo "## [$(date +%F)] round $n | reverted | $B | agent made no commit" >> foundry/log.md; continue
+  BR="foundry/$(date +%F)-$n"
+  ERR=$(wt_add "$BR") || { say "$n" reverted "$BR" "worktree add failed: $(printf %s "$ERR" | one)"; continue; }
+  [ $DRY = 1 ] && { echo "dry round $n on $BR"; wt_drop; drop_branch "$BR"; continue; }
+  if ! ( cd "$WT" && bash -c "$AGENT" ) >> "$ALOG" 2>&1; then
+    say "$n" reverted "$BR" "agent failed: $(tail -1 "$ALOG" | one)"; wt_drop; drop_branch "$BR"; continue
   fi
-  if bash -c "$EVAL" >> foundry/agent.log 2>&1; then
-    MSG=$(git log -1 --format=%s); git switch -q "$MAIN"
-    echo "## [$(date +%F)] round $n | kept | $B | $MSG" >> foundry/log.md
+  if [ "$(git -C "$WT" rev-parse HEAD)" = "$(git -C "$MAIN" rev-parse "$BASE")" ]; then
+    say "$n" reverted "$BR" "agent made no commit"; wt_drop; drop_branch "$BR"; continue
+  fi
+  if ( cd "$WT" && bash -c "$EVAL" ) >> "$ALOG" 2>&1; then
+    MSG=$(git -C "$WT" log -1 --format=%s | one); wt_drop      # the branch stays for the morning
+    say "$n" kept "$BR" "$MSG"
   else
-    git switch -q "$MAIN"; git branch -q -D "$B"
-    echo "## [$(date +%F)] round $n | reverted | $B | eval failed" >> foundry/log.md
+    say "$n" reverted "$BR" "eval failed: $(tail -1 "$ALOG" | one)"; wt_drop; drop_branch "$BR"
   fi
 done
-git add foundry/log.md >/dev/null 2>&1 || true
-tail -"$ROUNDS" foundry/log.md
+tail -"$ROUNDS" "$LOG"
