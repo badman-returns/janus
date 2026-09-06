@@ -39,12 +39,14 @@ written to any file.
 The fleet machine's config carries one more optional key, `voice`, read by the voice loop
 (`voice/loop.py`) and the shell (`voice/shell.py`): `{ mic, wake_model, whisper_url, kokoro_voice,
 hotkey, partials, port, vad, vad_rms, echo_margin, wake_settle, wake_threshold_speaking,
-min_speech, think_timeout }`. Every key is defaulted — a missing key, or no `voice` object at all,
+min_speech, think_timeout, end_silence, max_turn }`. Every key is defaulted — a missing key, or no `voice` object at all,
 starts the loop on the built-in microphone and the stand-in wake word. Defaults: `mic` `"1"`,
 `wake_model` `"hey_jarvis"`, `kokoro_voice` `"am_michael"`, `hotkey`
 `"alt+space"`, `partials` `true`, `port` `8790`, `vad` `"silero"`, `vad_rms` `0.015`, `echo_margin`
-`1.8`, `wake_settle` `1.5s`, `wake_threshold_speaking` `0.8`, `min_speech` `0.4s`, `think_timeout`
-`120s`.
+`1.8`, `wake_settle` `3s` (the wake model's scores lag the sound), `wake_threshold_speaking` `1.01`
+(the door is shut while he speaks: talking over him or the key interrupts; the name does once the room
+is quiet), `min_speech` `0.4s`, `think_timeout` `120s`, `end_silence` `1.6s` (quiet that ends a turn —
+a breath mid-sentence is shorter), `max_turn` `45s`.
 
 ## `.delivery/inbox/` — the only write path from operator to machine
 
