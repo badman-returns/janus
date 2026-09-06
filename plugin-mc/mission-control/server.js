@@ -399,12 +399,18 @@ http.createServer((req, res) => {
         // path that does not resolve is a 404, never an open.
         if (file) {
           const base = fs.realpathSync(dir);
-          // a machine's .delivery may itself be a link to a sibling repo (shop-web's is): that tree is
-          // the machine's own too, so a file under it is inside, once the links are followed
-          const roots = [base]; try { roots.push(fs.realpathSync(path.join(dir, ".delivery"))); } catch {}
-          let abs; try { abs = fs.realpathSync(path.resolve(base, file)); }
-          catch { res.writeHead(404, { "content-type": "application/json" }); return res.end(JSON.stringify({ ok: false, error: "no such file" })); }
-          if (!roots.some(r => abs === r || abs.startsWith(r + path.sep))) throw new Error("outside the machine");
+          // A refs: path may name a file on any registered machine (the concierge reads every ledger),
+          // under a machine's .delivery even when that is a link to a sibling repo (shop-web's is), or
+          // under the two homes of the fleet (~/.delivery-machine, ~/.brain). Anything else is refused,
+          // once the links are followed. `~` is the operator's home.
+          const real = p => { try { return fs.realpathSync(p); } catch { return null; } };
+          const roots = [];
+          for (const m of Object.values(registry())) { for (const r of [real(m.dir), real(path.join(m.dir, ".delivery"))]) if (r) roots.push(r); }
+          for (const h of [".delivery-machine", ".brain"]) { const r = real(path.join(process.env.HOME, h)); if (r) roots.push(r); }
+          const named = file.replace(/^~(?=\/|$)/, process.env.HOME);
+          const abs = real(path.resolve(base, named));
+          if (!abs) { res.writeHead(404, { "content-type": "application/json" }); return res.end(JSON.stringify({ ok: false, error: "no such file" })); }
+          if (!roots.some(r => abs === r || abs.startsWith(r + path.sep))) throw new Error("outside every machine");
           spawn("code", ["-r", "-g", abs], { detached: true, stdio: "ignore" }).unref();
           res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ ok: true, file: abs }));
         }

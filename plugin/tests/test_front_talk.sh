@@ -66,13 +66,21 @@ echo "$H" | grep -qi 'content-type: text/javascript' || fail "marked served with
 grep -q 'marked' "$T/marked.js" || fail "marked body empty"
 curl -s "http://127.0.0.1:$PORT/front" | grep -q '/vendor/marked.min.js' || fail "/front does not load marked"
 
-# a refs: chip opens a file — never one outside the machine it names, and never one that is not there
-[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST -d '{"project":"b","file":"../brain/.delivery/config.json"}' "http://127.0.0.1:$PORT/api/front/open")" = "400" ] || fail "a path outside the machine was opened"
-ln -s "$T/brain/.delivery/config.json" "$T/b/link.json"
-[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST -d '{"project":"b","file":"link.json"}' "http://127.0.0.1:$PORT/api/front/open")" = "400" ] || fail "a symlink out of the machine was opened"
-[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST -d '{"project":"b","file":"nothing-here.md"}' "http://127.0.0.1:$PORT/api/front/open")" = "404" ] || fail "a missing file must be 404, not an open"
+# a refs: chip opens a file — on any registered machine or under the fleet's homes, never elsewhere, never one that is not there
+# a relative path that climbs into another *registered* machine is fine (the fleet is one); one that
+# climbs out of every machine is not, and a symlink that lands outside every machine is not either
+R=$(curl -s -w " %{http_code}" -X POST -d '{"project":"b","file":"../brain/.delivery/config.json"}' "http://127.0.0.1:$PORT/api/front/open"); case "$R" in *" 200") ;; *) fail "a path into the fleet machine was refused: $R";; esac
+R=$(curl -s -w " %{http_code}" -X POST -d '{"project":"b","file":"../../../../../../../../../../../../etc/hosts"}' "http://127.0.0.1:$PORT/api/front/open"); case "$R" in *" 400") ;; *) fail "a path outside every machine was opened: $R";; esac
+ln -s /etc/hosts "$T/b/link.json"
+R=$(curl -s -w " %{http_code}" -X POST -d '{"project":"b","file":"link.json"}' "http://127.0.0.1:$PORT/api/front/open"); case "$R" in *" 400") ;; *) fail "a symlink out of every machine was opened: $R";; esac
+R=$(curl -s -w " %{http_code}" -X POST -d '{"project":"b","file":"nothing-here.md"}' "http://127.0.0.1:$PORT/api/front/open"); case "$R" in *" 404") ;; *) fail "a missing file must be 404, not an open: $R";; esac
+# a refs: path may point at another registered machine's file, or under ~/.delivery-machine; `~` expands
+R=$(curl -s -w " %{http_code}" -X POST -d "{\"project\":\"fleet\",\"file\":\"$T/b/.delivery/config.json\"}" "http://127.0.0.1:$PORT/api/front/open"); case "$R" in *" 200") ;; *) fail "another machine's file was refused: $R";; esac
+R=$(curl -s -w " %{http_code}" -X POST -d '{"project":"fleet","file":"~/.delivery-machine/registry.json"}' "http://127.0.0.1:$PORT/api/front/open"); case "$R" in *" 200") ;; *) fail "a ~ path under the fleet's home was refused: $R";; esac
+R=$(curl -s -w " %{http_code}" -X POST -d "{\"project\":\"fleet\",\"file\":\"$T/elsewhere/delivery/config.json\"}" "http://127.0.0.1:$PORT/api/front/open"); case "$R" in *" 200") ;; *) fail "a linked .delivery reached by an absolute path was refused: $R";; esac
+R=$(curl -s -w " %{http_code}" -X POST -d '{"project":"fleet","file":"/etc/hosts"}' "http://127.0.0.1:$PORT/api/front/open"); case "$R" in *" 400") ;; *) fail "a file outside every machine was opened: $R";; esac
 # a file under a linked .delivery is inside the machine once the links are followed
-[ "$(curl -s -o /dev/null -w '%{http_code}' -X POST -d '{"project":"c","file":".delivery/replies/x.md"}' "http://127.0.0.1:$PORT/api/front/open")" = "200" ] || fail "a file under a linked .delivery was refused"
+R=$(curl -s -w " %{http_code}" -X POST -d '{"project":"c","file":".delivery/replies/x.md"}' "http://127.0.0.1:$PORT/api/front/open"); case "$R" in *" 200") ;; *) fail "a file under a linked .delivery was refused: $R";; esac
 for i in 1 2 3 4 5 6; do grep -q "elsewhere/delivery/replies/x.md" "$T/code.log" 2>/dev/null && break; sleep 0.25; done   # the editor is spawned after the answer
 grep -q "elsewhere/delivery/replies/x.md" "$T/code.log" 2>/dev/null || fail "the editor was not handed the real path: $(cat "$T/code.log" 2>/dev/null)"
 
