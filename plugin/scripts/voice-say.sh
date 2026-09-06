@@ -10,6 +10,7 @@ set -uo pipefail
 HERE=$(cd "$(dirname "$0")" && pwd); TTS="$HERE/../../voice/tts.sh"
 Q="$HOME/.brain/voice-queue"; mkdir -p "$Q"; VOICE=${VOICE_NAME:-${KOKORO_VOICE:-am_michael}}
 STATE_URL=${VOICE_STATE_URL:-http://127.0.0.1:8790/state}
+YIELD_MAX_S=${YIELD_MAX_S:-60}                # how long the desk waits for the concierge to finish; tests shrink it
 SPEAK_CMD=${SAY_BIN:-}                       # the seam: it gets the line as its last argument
 [ -n "$SPEAK_CMD" ] || [ -s "$TTS" ] || { echo "voice-say: $TTS is missing, nothing can be spoken" >&2; exit 1; }
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
@@ -20,8 +21,8 @@ speak(){
 }
 ok(){ [ -e "$HOME/.brain/voice.on" ] && [ ! -e "$HOME/.brain/dnd" ]; }
 yield_to_loop(){                             # never talk over the concierge; never wait forever
-  local t0=$SECONDS body st                  # a real 60 s budget: curl's own capped second counts too
-  while [ $((SECONDS - t0)) -lt 60 ]; do
+  local t0=$SECONDS body st                  # a real wall-clock budget: curl's own capped second counts too
+  while [ $((SECONDS - t0)) -lt "$YIELD_MAX_S" ]; do
     body=$(curl -s --max-time 1 "$STATE_URL" 2>/dev/null) || return 0   # loop down: the desk is ours
     # the last "state": in the body is the field; the envelope's "t":"state" is followed by a comma
     st=$(printf %s "$body" | sed -n 's/.*"state"[[:space:]]*:[[:space:]]*"\([a-z]*\)".*/\1/p')

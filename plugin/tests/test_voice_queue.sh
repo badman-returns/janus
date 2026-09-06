@@ -31,4 +31,10 @@ sleep 3
 echo '{"t":"state","state":"idle"}' > "$T/state.json"
 wait "$pid" || fail "waiting pass exited $?"
 grep -q '^brain: gate two waiting$' "$T/spoken" 2>/dev/null || fail "silent after the loop went idle: $(cat "$T/spoken" 2>/dev/null)"
+# The wait has a ceiling: a loop that never goes idle holds the line for YIELD_MAX_S seconds, then it speaks.
+echo '{"t":"state","state":"listening"}' > "$T/state.json"
+rm -f "$T/spoken"; echo "brain: gate three waiting" > "$T/home/.brain/voice-queue/1003.txt"
+t0=$(date +%s); YIELD_MAX_S=2 run --once || fail "capped pass exited $?"; dt=$(( $(date +%s) - t0 ))
+[ "$dt" -ge 2 ] && [ "$dt" -le 6 ] || fail "yield cap: took ${dt}s, expected about 2"
+grep -q '^brain: gate three waiting$' "$T/spoken" 2>/dev/null || fail "never spoke after the cap"
 echo "PASS test_voice_queue"
