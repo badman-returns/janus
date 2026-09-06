@@ -272,7 +272,7 @@ class Loop:
             elif k == 'write_note': write_note(a[1], a[2], a[3], a[4], self.source)
             elif k == 'show_reply': stream.emit({'t': 'janus', 'reply': a[1], 'sentences': a[2], 'via': a[3], 'spoken': a[4]})
             elif k == 'say_bridge':
-                stream.emit({'t': 'janus', 'text': a[1], 'bridge': True}); self.player.say('bridge', 'bridge', slugify(a[1]), a[1])
+                stream.emit({'t': 'janus', 'text': a[1], 'bridge': True}); self.player.say('bridge', 'bridge-' + VOICE, slugify(a[1]), a[1])   # cached per voice: a bridge rendered in an old voice must not outlive the voice change
     def sentence_done(self): self.feed('sentence_done')
     def on_reply(self, stem, sents, h):
         self.replies[stem] = sents
@@ -318,7 +318,7 @@ class Loop:
                         ratio = r / pl; self.echo = ratio if self.echo == 0.0 else 0.9 * self.echo + 0.1 * ratio
                     self.speech = self.speech + 1 if over else 0                    # ponytail: a voice arriving inside the
                     # 0.6 s settle window still teaches the estimate, so it reads loud; the name is the door for that case
-                    if self.speech >= 4: self.speech = 0; self.feed('wake')
+                    if self.speech >= 4: self.speech = 0; self.feed('over')   # talked over: same as the name, named apart in the stream
             elif st in ('idle', 'waiting', 'thinking'):                             # the machine takes the name from all three
                 # the door is high while any sound of his plays (a bridge during thinking, the whisper-down line at rest), not only in `speaking`
                 if max(wake.predict(f).values()) > wake_threshold(st, 0.0 if self.player.play_t0 else time.time() - self.player.play_end):

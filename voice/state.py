@@ -36,9 +36,9 @@ class Machine:
             self._go('offline', out)
         elif ev == 'online':
             if self.state == 'offline': self._go(self._rest(), out)         # a repeat is not a reason to drop the cursor
-        elif ev in ('wake', 'key'):
+        elif ev in ('wake', 'key', 'over'):                               # the name, the key, or a voice over his
             if self.state == 'offline': return out
-            if ev == 'wake' and self.muted(): return out                  # the name is off under dnd / meeting
+            if ev in ('wake', 'over') and self.muted(): return out         # the name and the barge-in are off under dnd / meeting
             if self.state == 'speaking':
                 out.append(('pause_playback',)); self.paused = self.current; self.current = None
             self.solicited = True; out.append(('open_mic',)); self._go('listening', out, door=ev)
