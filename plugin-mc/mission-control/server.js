@@ -265,7 +265,9 @@ const talkOf = (dir) => (readIf(path.join(dir, ".delivery", "talk.jsonl"), 60000
     const body = readIf(f);
     if (body === null) return { ...r, reply: null };
     let mtime = null; try { mtime = fs.statSync(f).mtime.toISOString(); } catch {}
-    return { ...r, reply: { ...splitHeader(body), mtime } };
+    // capped from the head, not the tail like readIf's own cap: the header block is at the top,
+    // and 40 long answers on one page is what this route must not become
+    return { ...r, reply: { ...splitHeader(body.slice(0, 20000)), mtime } };
   });
 const front = () => {
   const rows = Object.entries(registry()).map(([k, v]) => {
@@ -392,9 +394,13 @@ http.createServer((req, res) => {
     readBody(req, 2000, body => {
       try {
         const { project, slice, file } = JSON.parse(body); const dir = machineDir(project);
-        // a refs: chip names one file, repo-relative or absolute; it must stay inside the machine
+        // a refs: chip names one file, repo-relative or absolute. It must stay inside the machine
+        // after the links are followed, not just on paper — so both sides are realpath'd, and a
+        // path that does not resolve is a 404, never an open.
         if (file) {
-          const base = path.resolve(dir), abs = path.resolve(base, file);
+          const base = fs.realpathSync(dir);
+          let abs; try { abs = fs.realpathSync(path.resolve(base, file)); }
+          catch { res.writeHead(404, { "content-type": "application/json" }); return res.end(JSON.stringify({ ok: false, error: "no such file" })); }
           if (abs !== base && !abs.startsWith(base + path.sep)) throw new Error("outside the machine");
           spawn("code", ["-r", "-g", abs], { detached: true, stdio: "ignore" }).unref();
           res.writeHead(200, { "content-type": "application/json" }); return res.end(JSON.stringify({ ok: true, file: abs }));

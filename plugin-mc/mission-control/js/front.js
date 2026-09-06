@@ -4,7 +4,8 @@
 // 127.0.0.1:8790, when it answers, only lends the orb, the state word and a live transcript.
 // The pill is this same module against pill.html at 44 px.
 import { makeOrb } from "/js/orb.js";
-const $ = s => document.querySelector(s), esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+import { SAFE, esc } from "/js/mdsafe.js";
+const $ = s => document.querySelector(s);
 try { if (localStorage.getItem("dm2-theme") === "light") document.documentElement.setAttribute("data-theme", "light"); } catch {}
 // the pill asks for itself in the script tag (/js/front.js?pill=1), so read that query too; the
 // page's own query wins, which is how ?voice= picks a port.
@@ -68,7 +69,7 @@ function render(d) {
   const brief = d.machines.find(m => m.project === d.fleet)?.replies?.[0];
   const fresh = brief && (Date.now() - new Date(brief.mtime.replace(" ", "T")).getTime()) < 3600e3;
   const lines = d.machines.flatMap(m => m.runs.slice(-1).map(r => headline(m, r))).slice(0, 3);
-  $("#now").innerHTML = fresh ? `<p>${esc(brief.body.replace(/^(via|speak|needs|from): .*\n/gm, "")).slice(0, 1200)}</p>` : lines.length ? lines.map(l => `<p>${esc(l)}</p>`).join("") : "<p>Nothing is moving.</p>";
+  $("#now").innerHTML = fresh ? `<p>${esc(brief.body.replace(/^(via|speak|needs|from|refs): .*\n/gm, "")).slice(0, 1200)}</p>` : lines.length ? lines.map(l => `<p>${esc(l)}</p>`).join("") : "<p>Nothing is moving.</p>";
   const cards = d.machines.flatMap(m => m.items.map(it => ({ m, it })));
   $("#cards").innerHTML = cards.length ? cards.map(({ m, it }) => {
     const gate2 = /^gate-.*-proof\.txt$/.test(it.name), title = (it.body.split("\n")[0] || it.name).replace(/^GATE \d+ — /, "");
@@ -91,16 +92,10 @@ function render(d) {
 function markCards() { const [p, f] = String(about || "").split(/\s+/);
   document.querySelectorAll(".card").forEach(c => c.classList.toggle("needs", !!about && (f ? c.dataset.card === p + "/" + f : c.dataset.card.endsWith("/" + p)))); }
 // ---- the Talk column: the file thread, and the box that adds to it ----
-// marked renders the reply's markdown; raw HTML in a reply is shown as the text it is, never
-// parsed, and a link that is not http(s) loses its href — a reply can carry no markup of its own.
-if (!PILL && window.marked) marked.use({ renderer: { html: t => esc(t.text) } });
+if (!PILL && window.marked) marked.use({ renderer: SAFE });   // mdsafe.js: words, never markup
 function md(src) {
   const d = document.createElement("div"); d.className = "md";
   d.innerHTML = window.marked ? marked.parse(String(src || "")) : esc(src).replace(/\n/g, "<br>");
-  d.querySelectorAll("a").forEach(a => {
-    if (/^https?:/i.test(a.getAttribute("href") || "")) { a.target = "_blank"; a.rel = "noopener noreferrer"; }
-    else a.removeAttribute("href");
-  });
   return d;
 }
 const when = ts => { const d = new Date(ts || ""); return isNaN(d) ? "" : d.toLocaleString(); };
@@ -116,33 +111,48 @@ function replyEl(rep) {
   }
   return d;
 }
+let sig = null;
 function renderTalk() {
   const el = $("#talk"); if (!el) return;
-  const stick = el.scrollHeight - el.scrollTop - el.clientHeight < 80;   // he scrolled up: stay there
   const rows = DATA?.talk || [];
-  const said = new Set(rows.map(r => r.text));
-  for (let i = PENDING.length - 1; i >= 0; i--) if (said.has(PENDING[i].text)) PENDING.splice(i, 1);
-  const all = [...rows, ...PENDING];
+  // a pending bubble is the journal's own line until the journal has it: same words AND written
+  // no earlier than the send, so asking the same question twice keeps both bubbles
+  for (let i = PENDING.length - 1; i >= 0; i--)
+    if (rows.some(r => r.text === PENDING[i].text && Date.parse(r.ts) >= Date.parse(PENDING[i].ts))) PENDING.splice(i, 1);
+  // every nudge lands here, most of them about something else: rebuild only when the thread moved
+  const now = rows.map(r => r.stem + "@" + (r.reply?.mtime || "")).join("|") + "#" + PENDING.length;
+  if (now === sig) return;
+  sig = now;
+  const stick = el.scrollHeight - el.scrollTop - el.clientHeight < 80;   // he scrolled up: stay there
   el.textContent = "";
-  all.forEach((r, i) => {
+  for (const r of [...rows, ...PENDING]) {
     const you = document.createElement("div"); you.className = "msg you"; you.textContent = r.text; you.title = when(r.ts);
     el.appendChild(you);
     if (r.reply) el.appendChild(replyEl(r.reply));
-    else if (i === all.length - 1) el.insertAdjacentHTML("beforeend", '<div class="msg it think"><i></i><i></i><i></i></div>');
-  });
+    else el.insertAdjacentHTML("beforeend", '<div class="msg it think"><i></i><i></i><i></i></div>');
+  }
   if (partial) el.appendChild(partial);
   if (stick) el.scrollTop = 1e9;
 }
 if (!PILL) {
   const say = $("#say"), grow = () => { say.style.height = "auto"; say.style.height = say.scrollHeight + "px"; };
-  say.addEventListener("input", grow);
-  say.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); $("#talkbox").requestSubmit(); } });
+  say.addEventListener("input", () => { grow(); $("#sendfail").textContent = ""; });
+  // isComposing: Enter is how an IME accepts its candidate, not how he sends
+  say.addEventListener("keydown", e => { if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); $("#talkbox").requestSubmit(); } });
   say.focus();
   $("#talkbox").addEventListener("submit", async ev => {
     ev.preventDefault(); const text = say.value.trim(); if (!text) return;
-    say.value = ""; grow();
-    PENDING.push({ ts: new Date().toISOString(), text, reply: null }); renderTalk();
-    try { await fetch("/api/front/note", { method: "POST", body: JSON.stringify({ project: FLEET, text }) }); } catch {}
+    say.value = ""; grow(); $("#sendfail").textContent = "";
+    const p = { ts: new Date().toISOString(), text, reply: null };
+    PENDING.push(p); renderTalk();
+    const r = await fetch("/api/front/note", { method: "POST", body: JSON.stringify({ project: FLEET, text }) }).catch(() => null);
+    // it never reached the concierge: take the bubble back, hand him his words, say so once
+    if (!r?.ok) {
+      const i = PENDING.indexOf(p); if (i > -1) PENDING.splice(i, 1);
+      if (!say.value) { say.value = text; grow(); }
+      $("#sendfail").textContent = "not sent — the words are back in the box";
+      renderTalk();
+    }
     load();
   });
 }

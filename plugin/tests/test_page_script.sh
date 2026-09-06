@@ -23,7 +23,7 @@ for i in $(seq 1 40); do curl -sf "localhost:$PORT/api/state" >/dev/null && brea
 curl -sf "localhost:$PORT/api/state" >/dev/null || fail "server did not come up on $PORT"
 
 # walk both pages and everything they reference; each fetched JS file lands in $T/js/ for node
-BASE="http://localhost:$PORT" OUT="$T/js" python3 - "/" "/fleet" > "$T/report" <<'EOF' || fail "asset walk"
+BASE="http://localhost:$PORT" OUT="$T/js" python3 - "/" "/fleet" "/front" "/pill" > "$T/report" <<'EOF' || fail "asset walk"
 import os, re, sys, urllib.request, urllib.error, pathlib, posixpath
 base, out = os.environ["BASE"], pathlib.Path(os.environ["OUT"]); out.mkdir(exist_ok=True)
 bad, n_js, n_css = [], 0, 0
