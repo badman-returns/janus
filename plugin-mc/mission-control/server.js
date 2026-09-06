@@ -252,7 +252,11 @@ const front = () => {
   });
   const rp = path.join(process.env.HOME, ".brain", "reports");
   const reports = listDir(rp).filter(e => e.dir).map(e => ({ name: e.name, line: (readIf(path.join(rp, e.name, "latest.md"), 400) || "").split("\n")[0] }));
-  return { now: new Date().toISOString(), fleet: path.basename(PROJ_DIR), machines: rows, reports };
+  // the fleet's own name is its registry key, which is config.project — not its directory, which
+  // differs (the brain repo is registered as "fleet"). The page matches machines against this.
+  let fleetName = path.basename(PROJ_DIR);
+  try { fleetName = JSON.parse(fs.readFileSync(path.join(PROJ_DIR, ".delivery", "config.json"), "utf8")).project || fleetName; } catch {}
+  return { now: new Date().toISOString(), fleet: fleetName, machines: rows, reports };
 };
 // a file with Range support, for the proof videos a <video> element scrubs
 const serveFile = (req, res, file, mime) => {

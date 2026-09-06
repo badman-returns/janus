@@ -93,8 +93,8 @@ The window is a Chrome app pinned to the fleet machine's front page — opened w
 the menu bar, or by double-clicking Janus.app — and closes like any other window. When it is
 hidden and the loop leaves idle, a small pill drops under the menu bar with the same orb and the
 line being heard or said, so you can see what is happening without bringing the window forward.
-The ring in the menu bar is that orb at 14 px: its motion and colour say the state from across the
-room. On the page the caption beside the orb says it in a word — "off," "listening," "thinking,"
+The ring in the menu bar is that orb at 14 px: its shape says the state — a ring at rest, a wide
+centre dot while it listens, a split disc while it talks, a heavy notched ring while it waits. On the page the caption beside the orb says it in a word — "off," "listening," "thinking,"
 "speaking," "waiting on you" — and the title bar says the same thing in a sentence.
 
 Two things it handles quietly, worth knowing so silence does not read as a hang: a turn that opens

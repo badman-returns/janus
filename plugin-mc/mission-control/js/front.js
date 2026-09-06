@@ -16,7 +16,11 @@ const orb = makeOrb($("#orb"));
 
 // ---- the loop's stream: orb, state word, title bar, Talk column, pill line ----
 let es = null, youEl = null, youOpen = false, janusEl = null, lastKind = null, about = null;
+const VIA = {};                                          // reply id -> via, kept from show_reply for the spoken path
 function bubble(kind) { const d = document.createElement("div"); d.className = "msg " + kind; $("#talk").appendChild(d); $("#talk").scrollTop = 1e9; return d; }
+// the seat is the machine's, not the name's: /api/front derives it from claude_config_dir.
+// No mark before the fleet has loaded, and none for a machine that is not registered.
+const mark = (el, via) => { if (via) el.insertAdjacentHTML("beforeend", ` <span class="seat">from ${esc(via)}${DATA?.machines.find(m => m.project === via)?.seat === "office" ? ", office seat" : ""}</span>`); };
 function onEvent(e) {
   orb.on(e);
   if (e.t === "state") {
@@ -33,12 +37,11 @@ function onEvent(e) {
     if (youEl && youOpen) youEl.remove(); youEl = null; youOpen = false;
   } else if (e.t === "janus") {
     if (PILL) { if (e.text) $("#pilltext").textContent = e.text; return; }
-    // the seat is the machine's, not the name's: /api/front derives it from claude_config_dir.
-    // No mark before the fleet has loaded, and none for a machine that is not registered.
-    if (e.sentences && !e.spoken) { const d = bubble("it"); d.textContent = e.sentences.join(" "); if (e.via) d.insertAdjacentHTML("beforeend", ` <span class="seat">from ${esc(e.via)}${DATA?.machines.find(m => m.project === e.via)?.seat === "office" ? ", office seat" : ""}</span>`); lastKind = "janus"; return; }
-    if (e.sentences) return;                              // spoken replies arrive sentence by sentence below
-    if (e.bridge) { const d = bubble("it"); d.textContent = e.text; d.classList.add("bridge"); lastKind = "janus"; return; }
-    if (!janusEl || lastKind !== "janus") { janusEl = bubble("it"); janusEl.dataset.reply = e.reply || ""; }
+    if (e.sentences && !e.spoken) { const d = bubble("it"); d.textContent = e.sentences.join(" "); mark(d, e.via); lastKind = "janus"; return; }
+    if (e.sentences) { if (e.via) VIA[e.reply] = e.via; return; }   // spoken: sentence by sentence below, and they carry no via
+    // a bridge is its own bubble: the sentence it was cut in is re-spoken whole, under it, not into it
+    if (e.bridge) { const d = bubble("it"); d.textContent = e.text; d.classList.add("bridge"); lastKind = "bridge"; return; }
+    if (!janusEl || lastKind !== "janus") { janusEl = bubble("it"); janusEl.dataset.reply = e.reply || ""; mark(janusEl, VIA[e.reply]); }
     const s = document.createElement("span"); s.textContent = (janusEl.childNodes.length ? " " : "") + e.text; janusEl.appendChild(s); lastKind = "janus"; $("#talk").scrollTop = 1e9;
   }
 }
@@ -91,7 +94,9 @@ function render(d) {
   $("#emp").innerHTML = d.reports.length ? d.reports.map(r => `<div><b>${esc(r.name)}</b>${esc(r.line)}</div>`).join("") : `<div class="dim">No employees yet.</div>`;
   markCards();
 }
-function markCards() { document.querySelectorAll(".card").forEach(c => c.classList.toggle("needs", !!about && c.dataset.card.endsWith("/" + about))); }
+// `needs: <machine> <file>` (PROTOCOL.md): the card is "<machine>/<file>". One token is a bare file.
+function markCards() { const [p, f] = String(about || "").split(/\s+/);
+  document.querySelectorAll(".card").forEach(c => c.classList.toggle("needs", !!about && (f ? c.dataset.card === p + "/" + f : c.dataset.card.endsWith("/" + p)))); }
 async function load() { try { render(await (await fetch("/api/front")).json()); } catch {} }
 if (!PILL) { load(); const ev = new EventSource("/events"); ev.onmessage = m => { if (m.data === "change") load(); }; setInterval(load, 30000); }
 

@@ -28,6 +28,16 @@ WAKE_SETTLE = float(C.get('wake_settle', 1.5))           # how long after his la
 MIN_SPEECH = float(C.get('min_speech', 0.4))             # a turn with less speech than this heard nobody
 THINK_TIMEOUT = float(C.get('think_timeout', 120))       # the real concierge answers in 27-34 s
 SESSION = 'dm-' + CONF.get('project', 'fleet'); PICKUP = CONF.get('pickup_skill', 'dm')
+# who may talk to this endpoint from a browser. Binding 127.0.0.1 keeps the network out, not the
+# pages in it: without this any tab on this Mac could read /stream and post into /say. The cockpit's
+# port comes from the registry, the way shell.py reads it; with no registry, only curl (no Origin).
+def _mc_port():
+    try:
+        reg = json.load(open(os.path.expanduser('~/.delivery-machine/registry.json')))
+        return reg.get(CONF.get('project', 'fleet'), {}).get('port') or next(iter(reg.values()))['port']
+    except Exception: return None
+MC_PORT = _mc_port()
+ALLOW = {f'http://localhost:{MC_PORT}', f'http://127.0.0.1:{MC_PORT}'} if MC_PORT else set()
 BRAIN = os.path.expanduser('~/.brain'); os.makedirs(os.path.join(BRAIN, 'voice', 'failed'), exist_ok=True)
 SR = 16000; FRAME = 1280            # 80 ms frames: what openWakeWord wants
 
@@ -252,7 +262,7 @@ class Loop:
             if k == 'state':
                 info = {x: y for x, y in a[2].items() if x != 'since'}; stream.emit({'t': 'state', 'state': a[1], **info}); self.said_working = False
             elif k == 'open_mic': self.buf = []; self.silence = 0; self.speech = 0; self.real = 0; self.opened_at = time.time(); self.last_partial = time.time(); self.mic_open = True
-            elif k == 'close_mic': self.mic_open = False; stream.emit({'t': 'level', 'v': 0.0})
+            elif k == 'close_mic': self.mic_open = False; self.speech = 0; stream.emit({'t': 'level', 'v': 0.0})
             elif k == 'pause_playback': self.player.pause()
             elif k in ('speak', 'resume_playback'):
                 sents = self.replies[a[1]]
@@ -354,9 +364,16 @@ class Loop:
 LOOP = None
 class H(BaseHTTPRequestHandler):
     def log_message(self, *a): pass
-    def _cors(self): self.send_header('Access-Control-Allow-Origin', '*'); self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-    def do_OPTIONS(self): self.send_response(204); self._cors(); self.end_headers()
+    def _cors(self):
+        o = self.headers.get('Origin')
+        if o: self.send_header('Access-Control-Allow-Origin', o); self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+    def _allowed(self): o = self.headers.get('Origin'); return not o or o in ALLOW   # no Origin: curl, the selftest, shell.py
+    def _refuse(self): self.send_response(403); self.end_headers(); return True
+    def do_OPTIONS(self):
+        if not self._allowed(): return self._refuse()
+        self.send_response(204); self._cors(); self.end_headers()
     def do_GET(self):
+        if not self._allowed(): return self._refuse()
         if self.path.startswith('/stream'):
             self.send_response(200); self.send_header('Content-Type', 'text/event-stream'); self.send_header('Cache-Control', 'no-cache'); self._cors(); self.end_headers()
             q = stream.subscribe()
@@ -372,6 +389,7 @@ class H(BaseHTTPRequestHandler):
             self.send_response(200); self.send_header('Content-Type', 'application/json'); self._cors(); self.end_headers(); self.wfile.write(json.dumps(stream.last_state).encode())
         else: self.send_response(404); self.end_headers()
     def do_POST(self):
+        if not self._allowed(): return self._refuse()
         n = int(self.headers.get('Content-Length') or 0); body = json.loads(self.rfile.read(n) or b'{}') if n else {}
         if self.path == '/listen': LOOP.feed('key')
         elif self.path == '/stop': LOOP.feed('stop')

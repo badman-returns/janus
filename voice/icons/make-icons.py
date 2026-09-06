@@ -5,8 +5,10 @@ zlib and struct write the PNG by hand; seven circles do not earn a Pillow depend
 
     voice/.venv/bin/python voice/icons/make-icons.py   # writes 14 files next to this script
 
-Shapes, per the plan: a ring for idle, a filled disc for listening, speaking and waiting, a ring
-with a centre dot for thinking, a faint ring for muted, a dashed ring for offline.
+Shapes, per the plan — seven states, seven different pictures, because the ring's shape is the only
+thing that says which one: a ring for idle, a ring with a wide centre dot for listening, a ring with
+a small one for thinking, a disc split by a bar for speaking, a heavy notched ring for waiting, a
+faint ring for muted, a dashed ring for offline.
 """
 import math, os, struct, sys, zlib
 
@@ -14,18 +16,25 @@ R, STROKE, DOT = 0.72, 0.20, 0.24   # ring radius, stroke width, centre dot — 
 IN, OUT = R - STROKE / 2, R + STROKE / 2
 TAU = math.tau
 
+EYE = 0.44                          # listening's centre dot: wide open, twice thinking's
+HEAVY = 0.34                        # waiting's ring, thicker than the rest so it reads as insistent
+HIN, HOUT = R - HEAVY / 2, R + HEAVY / 2
+
 def ring(d, a):    return IN <= d <= OUT
 def disc(d, a):    return d <= OUT
 def ring_dot(d, a): return ring(d, a) or d <= DOT
+def ring_eye(d, a): return ring(d, a) or d <= EYE
+def barred(d, a):  return disc(d, a) and abs(d * math.sin(a)) > 0.15   # a disc a mouth-line splits
+def notched(d, a): return HIN <= d <= HOUT and not a < TAU / 8         # a heavy ring, one gap
 def dashed(d, a):  return ring(d, a) and (a % (TAU / 6)) < (TAU / 6) * 0.6  # 6 chunky dashes: at
                    # 22 px a finer dash pattern turns to noise rather than reading as "not there"
 
 STATES = {                    # state -> (shape, opacity)
     'idle':      (ring,     1.0),
-    'listening': (disc,     1.0),
+    'listening': (ring_eye, 1.0),
     'thinking':  (ring_dot, 1.0),
-    'speaking':  (disc,     1.0),
-    'waiting':   (disc,     1.0),
+    'speaking':  (barred,   1.0),
+    'waiting':   (notched,  1.0),
     'muted':     (ring,     0.35),
     'offline':   (dashed,   1.0),
 }
@@ -69,10 +78,11 @@ def main(out_dir=None):
             png(os.path.join(out_dir, f'{state}{suffix}.png'), size, s)
             if size == 22: ink[state] = alpha_sum(s)
     # the check: the shapes must actually differ, or every state looks the same in the menu bar
-    assert ink['listening'] > ink['idle'] > 0, ink            # a disc is more ink than a ring
-    assert ink['thinking'] > ink['idle'], ink                 # the centre dot adds ink
+    assert ink['listening'] > ink['thinking'] > ink['idle'] > 0, ink   # each centre dot adds ink
+    assert ink['speaking'] > ink['waiting'] > ink['idle'], ink         # a split disc, then a heavy ring
     assert ink['offline'] < ink['idle'], ink                  # dashes remove half the ring
     assert ink['muted'] == 0, ink                             # faint: no fully opaque pixel
+    assert len(set(ink.values())) == len(ink), ink            # seven states, seven pictures
     print(f'icons: {2 * len(STATES)} files in {out_dir}', ink)
 
 if __name__ == '__main__': main(*sys.argv[1:])

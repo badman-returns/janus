@@ -31,4 +31,7 @@ for state, app, title, want, why in cases:
     assert got is want, f'{why}: pill_visible({state!r}, {app!r}, {title!r}) = {got}, wanted {want}'
 print(f'ok: {len(cases)} cases against title {T!r}')
 PY
+# and the ring itself has to say which state it is: seven base icons, seven different pictures
+N=$(cd "$VOICE/icons" && ls *.png | grep -vc '@2x'); U=$(cd "$VOICE/icons" && md5 -q $(ls *.png | grep -v '@2x') | sort -u | wc -l | tr -d ' ')
+[ "$N" = 7 ] && [ "$U" = 7 ] || fail "menu-bar icons: $N base icons but $U distinct pictures — a state that looks like another says nothing"
 echo "PASS test_pill_rule"
