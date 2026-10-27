@@ -20,13 +20,14 @@ services, the Claude session(s), and — with the cockpit — `mission` (dashboa
 ## Once per Mac / account
 
 ```bash
-claude plugin marketplace add ~/code/janus
+git clone https://github.com/badman-returns/janus ~/janus
+claude plugin marketplace add ~/janus
 claude plugin install janus@janus-marketplace       # architecture
 claude plugin install mission-control@janus-marketplace        # cockpit (skip on an account that only wants the architecture)
 brew install ttyd                                           # cockpit only; without it tiles are read-only snapshots
-bash ~/code/janus/plugin/scripts/install-login.sh   # optional: machines come up at login
-alias janus='bash ~/code/janus/plugin/scripts/janus.sh'   # the front door, from anywhere
-alias mission='bash ~/code/janus/plugin/scripts/dm.sh'     # this project's machine
+bash ~/janus/plugin/scripts/install-login.sh   # optional: machines come up at login
+alias janus='bash ~/janus/plugin/scripts/janus.sh'   # the front door, from anywhere
+alias mission='bash ~/janus/plugin/scripts/dm.sh'     # this project's machine
 ```
 Each Claude account is its own install (`CLAUDE_CONFIG_DIR=~/.claude-x claude plugin …`).
 On macOS, launchd cannot read `~/Documents` without Full Disk Access for `/bin/bash` — grant it once.
@@ -218,4 +219,4 @@ on anything it changed.
 ## Where things live
 
 `plugin/` the architecture (agents, skills, hooks, scripts, tests) · `plugin-mc/` the cockpit ·
-`PROTOCOL.md` the seam · `docs/superpowers/` design + plan · `~/.delivery-machine/registry.json` the fleet · per project `.delivery/ .planning/ proof/`.
+`PROTOCOL.md` the seam · `~/.delivery-machine/registry.json` the fleet · per project `.delivery/ .planning/ proof/`.

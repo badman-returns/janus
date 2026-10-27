@@ -3,7 +3,7 @@
 // and to the far side while it works; waiting holds the warm token. It draws nothing the loop is not
 // doing: feed it the loop's events with on(). Expects window.THREE (vendor/three.min.js).
 //
-// Lifted from docs/superpowers/specs/2026-09-06-presence-mockup.html — LOOKS.cloud, makeOrb,
+// Lifted from the presence mockup (a design file, not in this repo) — LOOKS.cloud, makeOrb,
 // readTheme, groundOf, mulberry — with only what a module and the product need changed: no bus
 // (on() takes the loop's events), no look table, dark unless the page is stamped light, and one
 // requestAnimationFrame per orb that stops while the canvas is off screen.

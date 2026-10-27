@@ -3,7 +3,7 @@
 You are improving Janus, the plugin in `plugin/`. One change per round. Evidence first.
 
 ## Where this runs
-The loop is started in the main checkout, `~/code/janus`, and builds from
+The loop is started in the main checkout, `~/janus`, and builds from
 its default branch — read from the refs, so whatever the operator has checked out or half-edited
 there is irrelevant. It never switches that checkout, never checks anything out in it, never
 stashes: each round gets its own throwaway worktree at `~/.brain/foundry/wt` (`FOUNDRY_WT` moves

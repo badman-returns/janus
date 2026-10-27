@@ -32,12 +32,12 @@ The file contract between the agent layer, the machine and the cockpit: **`PROTO
 **Third face.** A phone chat reaches every machine at once: Telegram topics linked to each
 project's own session, a shared brain the machine writes to and recalls from, gate proof as
 narrated video, and jobs that run the whole thing unattended overnight. See `GUIDE.md`'s "From the
-phone" door; design: `docs/superpowers/specs/2026-09-05-third-face-design.md`.
+phone" door.
 
 **Front door.** A voice loop on the Mac wakes to "hey Janus," answers in Kokoro's voice, and can be
 interrupted mid-sentence and resumed; one screen shows the fleet in words with an orb drawing the
 loop's own state, plus a menu-bar presence and a pill for when the window is hidden. See
-`GUIDE.md`'s "From the desk"; design: `docs/superpowers/specs/2026-09-06-front-door-design.md`.
+`GUIDE.md`'s "From the desk".
 
 ## Use in any project
 
