@@ -5,23 +5,22 @@ reviewer/verifier agents with two human approval gates, every service visible
 in tmux, proof-of-done screenshots, a live mission-control dashboard, automatic
 session handoffs, and a fleet registry across projects.
 
-Design: `docs/design/2026-09-02-delivery-machine-hld.md`
-
 ## Install (once per Claude account)
 
 ```bash
-claude plugin marketplace add ~/code/janus
+git clone https://github.com/badman-returns/janus ~/janus
+claude plugin marketplace add ~/janus
 claude plugin install janus@janus-marketplace     # the architecture: agents, gates, ledger, machine
 claude plugin install mission-control@janus-marketplace      # the cockpit (optional) — live terminals, cards, fleet
 ```
 
-For a second account, run the same two commands from a session on that account
-(or with its `CLAUDE_CONFIG_DIR` active).
+For a second account, run the three `claude plugin` commands again from a session on
+that account (or with its `CLAUDE_CONFIG_DIR` active). The clone is shared.
 
 One alias is worth setting — the front door to every machine on the host:
 
 ```bash
-alias janus='bash ~/code/janus/plugin/scripts/janus.sh'
+alias janus='bash ~/janus/plugin/scripts/janus.sh'
 ```
 
 `janus` from any directory lists every registered machine with what it is waiting on and
